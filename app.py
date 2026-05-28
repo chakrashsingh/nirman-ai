@@ -30,6 +30,26 @@ ALLOWED_UPLOADS = {
     ".jpeg": "image/jpeg",
 }
 
+RATE_LIBRARY = {
+    "materials": [
+        {"item": "Cement OPC 43", "unit": "bag", "rate": 380, "source": "Delhi NCR seed"},
+        {"item": "Cement OPC 53", "unit": "bag", "rate": 395, "source": "Delhi NCR seed"},
+        {"item": "PPC Cement", "unit": "bag", "rate": 365, "source": "Delhi NCR seed"},
+        {"item": "TMT Steel Fe500D", "unit": "kg", "rate": 82, "source": "Delhi NCR seed"},
+        {"item": "Ready Mix Concrete M25", "unit": "cum", "rate": 8250, "source": "DSR/market seed"},
+        {"item": "Ready Mix Concrete M30", "unit": "cum", "rate": 8700, "source": "DSR/market seed"},
+        {"item": "AAC/block masonry", "unit": "sqft", "rate": 145, "source": "DSR/market seed"},
+        {"item": "Vitrified flooring", "unit": "sqft", "rate": 165, "source": "DSR/market seed"},
+    ],
+    "labour": [
+        {"item": "Mason labour", "unit": "day", "rate": 950, "source": "Delhi NCR seed"},
+        {"item": "Helper labour", "unit": "day", "rate": 650, "source": "Delhi NCR seed"},
+        {"item": "Shuttering carpenter", "unit": "day", "rate": 1100, "source": "Delhi NCR seed"},
+        {"item": "Steel fixer", "unit": "day", "rate": 1050, "source": "Delhi NCR seed"},
+    ],
+    "spec_options": SPEC_FACTORS if "SPEC_FACTORS" in globals() else {},
+}
+
 def get_db():
     if "db" not in g:
         g.db = sqlite3.connect(DB_PATH)
@@ -221,6 +241,13 @@ def home():
 @app.route("/api/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "product": "Nirman.AI", "version": "1.0.0"})
+
+@app.route("/api/rates/library", methods=["GET"])
+def rates_library():
+    library = copy.deepcopy(RATE_LIBRARY)
+    library["spec_options"] = SPEC_FACTORS
+    library["note"] = "Seed rate library for MVP scenario planning. Replace with verified supplier/labour quotes before commercial use."
+    return jsonify({"success": True, "library": library})
 
 @app.route("/api/auth/register", methods=["POST"])
 def register():
@@ -948,6 +975,94 @@ def save_project_scenario(project_id):
     get_db().commit()
     return jsonify({"success": True, "scenario": {"id": scenario_id, "name": scenario_name, **result}}), 201
 
+@app.route("/api/projects/<project_id>/estimate", methods=["PUT"])
+@require_auth
+def update_project_estimate(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["analysis"]:
+        return jsonify({"success": False, "message": "Analyze or enter project data before editing BOQ."}), 400
+
+    body = request.get_json() or {}
+    estimate = body.get("estimate") or body
+    if not isinstance(estimate.get("divisions"), dict):
+        return jsonify({"success": False, "message": "Estimate divisions are required."}), 400
+
+    current = json.loads(row["estimate"]) if row["estimate"] else calculate_estimate(json.loads(row["analysis"]))
+    current["divisions"] = estimate["divisions"]
+    current["built_up_area"] = safe_int(estimate.get("built_up_area"), current.get("built_up_area", 1), 1)
+    current = recalc_estimate_totals(current)
+    current["rates_source"] = estimate.get("rates_source") or "User-edited BOQ and seed rate library"
+    current["disclaimer"] = estimate.get("disclaimer") or current.get("disclaimer", "")
+
+    db.execute(
+        "UPDATE projects SET estimate = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
+        (json.dumps(current), now(), project_id)
+    )
+    db.commit()
+    return jsonify({"success": True, "estimate": current})
+
+def project_report_payload(row):
+    project = public_project(row)
+    scenarios = get_db().execute(
+        "SELECT id, name, options, result, created_at FROM scenarios WHERE project_id = ? AND user_id = ? ORDER BY created_at DESC",
+        (row["id"], row["user_id"])
+    ).fetchall()
+    parsed = []
+    for scenario in scenarios:
+        item = dict(scenario)
+        item["options"] = json.loads(item["options"])
+        item["result"] = json.loads(item["result"])
+        parsed.append(item)
+    return {
+        "generated_at": now(),
+        "project": project,
+        "scenarios": parsed,
+        "brand": "Nirman.AI",
+    }
+
+@app.route("/api/projects/<project_id>/report", methods=["GET"])
+@require_auth
+def project_report(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["estimate"]:
+        return jsonify({"success": False, "message": "Generate an estimate before exporting a report."}), 400
+    return jsonify({"success": True, "report": project_report_payload(row)})
+
+@app.route("/api/projects/<project_id>/report.csv", methods=["GET"])
+@require_auth
+def project_report_csv(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["estimate"]:
+        return jsonify({"success": False, "message": "Generate an estimate before exporting a report."}), 400
+    report = project_report_payload(row)
+    project = report["project"]
+    estimate = project["estimate"]
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Nirman.AI Cost Report"])
+    writer.writerow(["Generated At", report["generated_at"]])
+    writer.writerow(["Project", project["name"]])
+    writer.writerow(["Address", project.get("address") or ""])
+    writer.writerow(["Total With GST", estimate.get("total_with_gst")])
+    writer.writerow(["Cost Per Sqft", estimate.get("cost_per_sqft")])
+    writer.writerow([])
+    writer.writerow(["Division", "Description", "Qty", "Unit", "Rate", "Amount"])
+    for key, div in (estimate.get("divisions") or {}).items():
+        for item in div.get("items", []):
+            writer.writerow([div.get("name"), item.get("desc"), item.get("qty"), item.get("unit"), item.get("rate"), item.get("amount")])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.csv"}
+    )
+
 @app.route("/api/waitlist", methods=["POST"])
 def join_waitlist():
     data = request.get_json() or {}
@@ -1056,6 +1171,20 @@ def admin_users():
     ).fetchall()
     return jsonify({"success": True, "total": len(rows), "users": [dict(r) for r in rows]})
 
+@app.route("/api/admin/users/export", methods=["GET"])
+def admin_users_export():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    rows = get_db().execute(
+        "SELECT id, name, email, company, role, city, created_at FROM users ORDER BY created_at DESC"
+    ).fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "name", "email", "company", "role", "city", "created_at"])
+    for row in rows:
+        writer.writerow([row["id"], row["name"], row["email"], row["company"], row["role"], row["city"], row["created_at"]])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=nirman_users.csv"})
+
 @app.route("/api/admin/projects", methods=["GET"])
 def admin_projects():
     if not require_admin_key():
@@ -1070,6 +1199,26 @@ def admin_projects():
         """
     ).fetchall()
     return jsonify({"success": True, "total": len(rows), "projects": [dict(r) for r in rows]})
+
+@app.route("/api/admin/projects/export", methods=["GET"])
+def admin_projects_export():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    rows = get_db().execute(
+        """
+        SELECT p.id, p.name, p.address, p.project_type, p.status, p.file_name, p.file_size,
+               p.created_at, p.updated_at, u.name AS user_name, u.email AS user_email
+        FROM projects p
+        LEFT JOIN users u ON u.id = p.user_id
+        ORDER BY p.created_at DESC
+        """
+    ).fetchall()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "name", "address", "project_type", "status", "file_name", "file_size", "user_name", "user_email", "created_at", "updated_at"])
+    for row in rows:
+        writer.writerow([row["id"], row["name"], row["address"], row["project_type"], row["status"], row["file_name"], row["file_size"], row["user_name"], row["user_email"], row["created_at"], row["updated_at"]])
+    return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=nirman_projects.csv"})
 
 @app.route("/api/admin/waitlist", methods=["GET"])
 def admin_waitlist():

@@ -462,6 +462,23 @@ a{text-decoration:none;color:inherit}
 .saved-scenarios{margin-top:24px}
 .saved-row{display:flex;justify-content:space-between;gap:18px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.82rem}
 .saved-row:last-child{border-bottom:none}
+.report-actions{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:24px}
+.boq-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:28px 0 16px}
+.boq-input{width:100%;min-width:80px;background:var(--bg);border:1px solid var(--border);color:var(--white);padding:8px 10px;border-radius:var(--radius);font-size:.78rem}
+.rate-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+.rate-table{width:100%;border-collapse:collapse}
+.rate-table th,.rate-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:.78rem;text-align:left}
+.rate-table th{font-family:var(--mono);font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
+.print-report{display:none}
+@media print{
+  nav,.sidebar,.detail-actions,.stage-track,.upload-zone,.scenario-shell,.boq-toolbar,.report-actions,.back-btn,.notif,.cta-band,footer,#landing-container{display:none!important}
+  #root{display:block!important}
+  body,.main,.page-body,.detail-header{background:#fff!important;color:#111!important}
+  .app-shell{display:block!important}
+  .info-card,.division-list,.gst-summary{border:1px solid #ddd!important;background:#fff!important;color:#111!important}
+  .cost-summary{background:#eef7fa!important;color:#111!important}
+  .print-report{display:block!important;margin-bottom:24px;color:#111}
+}
 
 @media(max-width:960px){
   nav{padding:20px 28px}
@@ -489,6 +506,7 @@ a{text-decoration:none;color:inherit}
   .analysis-grid{grid-template-columns:1fr}
   .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
   .edit-grid{grid-template-columns:1fr 1fr}
+  .rate-grid{grid-template-columns:1fr}
   .cost-summary-grid{grid-template-columns:1fr}
   .page-body,.page-header,.detail-header{padding-left:24px;padding-right:24px}
 }
@@ -1327,6 +1345,145 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify}){
   );
 }
 
+function ReportActions({project,notify}){
+  async function downloadEstimateCsv(){
+    const r=await fetch(`${API}/api/projects/${project.id}/report.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
+    if(!r.ok){notify("Generate an estimate before exporting report.","error");return}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-cost-report.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function downloadReportJson(){
+    const d=await api.get(`/api/projects/${project.id}/report`);
+    if(!d.success){notify(d.message||"Report not ready.","error");return}
+    const blob=new Blob([JSON.stringify(d.report,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-report.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  return React.createElement("div",{className:"report-actions"},
+    React.createElement("button",{className:"btn-new",onClick:()=>window.print()},"Print / Save PDF"),
+    React.createElement("button",{className:"btn-outline",onClick:downloadEstimateCsv},"Download Estimate CSV"),
+    React.createElement("button",{className:"btn-outline",onClick:downloadReportJson},"Download Report JSON")
+  );
+}
+
+function RateLibrary(){
+  const [library,setLibrary]=useState(null);
+  useEffect(()=>{api.get("/api/rates/library").then(d=>{if(d.success)setLibrary(d.library)})},[]);
+  const table=(title,rows)=>React.createElement("div",{className:"info-card"},
+    React.createElement("div",{className:"info-card-title"},title),
+    React.createElement("table",{className:"rate-table"},
+      React.createElement("thead",null,React.createElement("tr",null,
+        React.createElement("th",null,"Item"),
+        React.createElement("th",null,"Unit"),
+        React.createElement("th",null,"Rate"),
+        React.createElement("th",null,"Source")
+      )),
+      React.createElement("tbody",null,(rows||[]).map((r,i)=>React.createElement("tr",{key:i},
+        React.createElement("td",null,r.item),
+        React.createElement("td",null,r.unit),
+        React.createElement("td",null,fmt.num(r.rate)),
+        React.createElement("td",null,r.source)
+      )))
+    )
+  );
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-title"},"Rate Library"),
+    React.createElement("div",{className:"rate-grid"},
+      table("Material Seed Rates",library?.materials||[]),
+      table("Labour Seed Rates",library?.labour||[])
+    ),
+    React.createElement("div",{className:"disclaimer"},library?.note||"Loading rate library...")
+  );
+}
+
+function BOQEditor({projectId,estimate,onUpdated,notify}){
+  const [draft,setDraft]=useState(()=>JSON.parse(JSON.stringify(estimate)));
+  const [saving,setSaving]=useState(false);
+  useEffect(()=>setDraft(JSON.parse(JSON.stringify(estimate))),[estimate]);
+  const divisions=draft?.divisions||{};
+  function setItem(divKey,index,field,value){
+    setDraft(cur=>{
+      const next=JSON.parse(JSON.stringify(cur));
+      next.divisions[divKey].items[index][field]=["qty","rate"].includes(field)?Number(value):value;
+      const item=next.divisions[divKey].items[index];
+      item.amount=Math.round((Number(item.qty)||0)*(Number(item.rate)||0));
+      next.divisions[divKey].amount=next.divisions[divKey].items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+      return next;
+    });
+  }
+  function addItem(divKey){
+    setDraft(cur=>{
+      const next=JSON.parse(JSON.stringify(cur));
+      next.divisions[divKey].items.push({desc:"New BOQ item",qty:1,unit:"lot",rate:0,amount:0});
+      return next;
+    });
+  }
+  function removeItem(divKey,index){
+    setDraft(cur=>{
+      const next=JSON.parse(JSON.stringify(cur));
+      next.divisions[divKey].items.splice(index,1);
+      next.divisions[divKey].amount=next.divisions[divKey].items.reduce((s,i)=>s+(Number(i.amount)||0),0);
+      return next;
+    });
+  }
+  async function save(){
+    setSaving(true);
+    const d=await api.put(`/api/projects/${projectId}/estimate`,{estimate:draft});
+    setSaving(false);
+    if(d.success){notify("BOQ saved and totals recalculated.","success");onUpdated(d.estimate)}
+    else notify(d.message||"Could not save BOQ.","error");
+  }
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"boq-toolbar"},
+      React.createElement("div",null,
+        React.createElement("div",{className:"projects-title"},"Editable BOQ"),
+        React.createElement("div",{className:"page-subtitle"},"Edit quantities, rates, units, and line descriptions before export.")
+      ),
+      React.createElement("button",{className:"btn-new",onClick:save,disabled:saving},saving?"Saving...":"Save BOQ")
+    ),
+    React.createElement("div",{className:"division-list"},
+      Object.entries(divisions).map(([key,div])=>React.createElement("div",{className:"division-item",key},
+        React.createElement("div",{className:"division-header"},
+          React.createElement("div",{className:"division-left"},
+            React.createElement("span",{className:"division-num"},key.split("_")[0]),
+            React.createElement("span",{className:"division-name"},div.name)
+          ),
+          React.createElement("button",{className:"btn-outline",onClick:()=>addItem(key)},"Add Item")
+        ),
+        React.createElement("div",{className:"division-body open"},
+          React.createElement("table",{className:"line-items-table"},
+            React.createElement("thead",null,React.createElement("tr",null,
+              React.createElement("th",null,"Description"),
+              React.createElement("th",null,"Qty"),
+              React.createElement("th",null,"Unit"),
+              React.createElement("th",null,"Rate"),
+              React.createElement("th",null,"Amount"),
+              React.createElement("th",null,"")
+            )),
+            React.createElement("tbody",null,(div.items||[]).map((item,i)=>React.createElement("tr",{key:i},
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",value:item.desc,onChange:e=>setItem(key,i,"desc",e.target.value)})),
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",type:"number",value:item.qty,onChange:e=>setItem(key,i,"qty",e.target.value)})),
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",value:item.unit,onChange:e=>setItem(key,i,"unit",e.target.value)})),
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",type:"number",value:item.rate,onChange:e=>setItem(key,i,"rate",e.target.value)})),
+              React.createElement("td",null,fmt.inrFull(item.amount)),
+              React.createElement("td",null,React.createElement("button",{className:"btn-icon",onClick:()=>removeItem(key,i)},"x"))
+            )))
+          )
+        )
+      ))
+    )
+  );
+}
+
 function BuildingMassing({analysis,scenario}){
   const ref=useRef(null);
   const floors=scenario?.options?.total_floors||analysis?.total_floors||15;
@@ -1554,6 +1711,10 @@ function ProjectDetail({projectId,onBack,notify}){
     setProject(p=>({...p,analysis,estimate,status:"analyzed"}));
   }
 
+  function handleEstimateUpdate(estimate){
+    setProject(p=>({...p,estimate,status:"analyzed"}));
+  }
+
   if(loading)return React.createElement("div",{className:"loading-state"},React.createElement("div",{className:"spinner"}),React.createElement("p",null,"Loading project..."));
   if(!project)return React.createElement("div",{className:"page-body"},React.createElement("p",{style:{color:"var(--dim)"}},"Project not found."));
 
@@ -1668,7 +1829,14 @@ function ProjectDetail({projectId,onBack,notify}){
 
       // Cost Estimate
       !analyzing&&hasEstimate&&React.createElement(React.Fragment,null,
+        React.createElement("div",{className:"print-report"},
+          React.createElement("h1",null,"Nirman.AI Cost Report"),
+          React.createElement("p",null,project.name," · ",project.address||"Delhi NCR")
+        ),
+        React.createElement(ReportActions,{project,notify}),
         React.createElement(ScenarioSimulator,{projectId,analysis,estimate,notify}),
+        React.createElement(RateLibrary,null),
+        React.createElement(BOQEditor,{projectId,estimate,onUpdated:handleEstimateUpdate,notify}),
         // Summary band
         React.createElement("div",{className:"cost-summary"},
           React.createElement("div",{className:"cost-summary-grid"},

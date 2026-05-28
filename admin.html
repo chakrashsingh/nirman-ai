@@ -46,6 +46,10 @@ h1{font-family:var(--syne);font-size:2rem;letter-spacing:-.01em}
 .tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
 .tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:12px 20px;color:var(--dim);font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
 .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.table-tools{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:16px}
+.search{width:100%;max-width:420px;background:#0a0a0a;border:1px solid var(--border);padding:12px 14px;color:var(--white);outline:none;border-radius:var(--radius)}
+.search:focus{border-color:var(--accent)}
+.tool-actions{display:flex;gap:10px;flex-wrap:wrap}
 .panel{border:1px solid var(--border);background:var(--surface);overflow:auto}
 table{width:100%;border-collapse:collapse;min-width:820px}
 th{font-family:var(--mono);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);text-align:left;padding:14px 18px;background:#0b0b0b;border-bottom:1px solid var(--border)}
@@ -108,6 +112,15 @@ tr:hover td{background:var(--card)}
         <button class="tab" data-tab="waitlist">Waitlist</button>
       </div>
 
+      <div class="table-tools">
+        <input class="search" id="searchInput" placeholder="Search current table"/>
+        <div class="tool-actions">
+          <a class="link-btn" id="exportUsers" href="#" target="_blank" rel="noreferrer">Export Users</a>
+          <a class="link-btn" id="exportProjects" href="#" target="_blank" rel="noreferrer">Export Projects</a>
+          <a class="link-btn" id="exportWaitlist" href="#" target="_blank" rel="noreferrer">Export Waitlist</a>
+        </div>
+      </div>
+
       <div class="panel" id="tablePanel"></div>
     </section>
   </main>
@@ -123,6 +136,10 @@ const els={
   refreshBtn:document.getElementById("refreshBtn"),
   logoutBtn:document.getElementById("logoutBtn"),
   exportLink:document.getElementById("exportLink"),
+  exportUsers:document.getElementById("exportUsers"),
+  exportProjects:document.getElementById("exportProjects"),
+  exportWaitlist:document.getElementById("exportWaitlist"),
+  searchInput:document.getElementById("searchInput"),
   error:document.getElementById("error"),
   stats:document.getElementById("stats"),
   tablePanel:document.getElementById("tablePanel"),
@@ -158,9 +175,20 @@ async function loadAdmin(){
   const res=await fetch(`${API}/api/admin/summary?key=${encodeURIComponent(key)}`);
   const data=await res.json();
   if(!data.success){showError(data.message||"Unauthorized.");setLoggedIn(false);return}
+  const [usersRes,projectsRes,waitlistRes]=await Promise.all([
+    fetch(`${API}/api/admin/users?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/projects?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/waitlist?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+  ]);
+  if(usersRes?.success)data.users=usersRes.users;
+  if(projectsRes?.success)data.projects=projectsRes.projects;
+  if(waitlistRes?.success)data.waitlist=waitlistRes.waitlist;
   localStorage.setItem("nirman_admin_key",key);
   state.data=data;
   els.exportLink.href=`${API}/api/waitlist/export?key=${encodeURIComponent(key)}`;
+  els.exportUsers.href=`${API}/api/admin/users/export?key=${encodeURIComponent(key)}`;
+  els.exportProjects.href=`${API}/api/admin/projects/export?key=${encodeURIComponent(key)}`;
+  els.exportWaitlist.href=`${API}/api/waitlist/export?key=${encodeURIComponent(key)}`;
   setLoggedIn(true);
   render();
 }
@@ -179,18 +207,25 @@ function table(headers, rows){
   if(!rows.length)return `<div class="empty">No records yet</div>`;
   return `<table><thead><tr>${headers.map(h=>`<th>${esc(h.label)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>`<tr>${headers.map(h=>`<td>${h.render(row)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
+function matchesSearch(row){
+  const q=(els.searchInput.value||"").trim().toLowerCase();
+  if(!q)return true;
+  return Object.values(row).some(v=>String(v??"").toLowerCase().includes(q));
+}
 function renderTable(){
   const d=state.data;
   if(state.tab==="users"){
+    const rows=(d.users||[]).filter(matchesSearch);
     els.tablePanel.innerHTML=table([
       {label:"Name",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.email)}</div>`},
       {label:"Company",render:r=>esc(r.company)},
       {label:"Role",render:r=>esc(r.role)},
       {label:"City",render:r=>esc(r.city)},
       {label:"Joined",render:r=>fmtDate(r.created_at)},
-    ],d.users||[]);
+    ],rows);
   }
   if(state.tab==="projects"){
+    const rows=(d.projects||[]).filter(matchesSearch);
     els.tablePanel.innerHTML=table([
       {label:"Project",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.address)}</div>`},
       {label:"Owner",render:r=>`<div>${esc(r.user_name)}</div><div class="mono">${esc(r.user_email)}</div>`},
@@ -198,16 +233,17 @@ function renderTable(){
       {label:"Status",render:r=>`<span class="badge ${esc(r.status)}">${esc(r.status)}</span>`},
       {label:"File",render:r=>`<div>${esc(r.file_name)}</div><div class="mono">${fmtBytes(r.file_size)}</div>`},
       {label:"Updated",render:r=>fmtDate(r.updated_at)},
-    ],d.projects||[]);
+    ],rows);
   }
   if(state.tab==="waitlist"){
+    const rows=(d.waitlist||[]).filter(matchesSearch);
     els.tablePanel.innerHTML=table([
       {label:"Name",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.email)}</div>`},
       {label:"Phone",render:r=>esc(r.phone)},
       {label:"Role",render:r=>esc(r.role)},
       {label:"City",render:r=>esc(r.city)},
       {label:"Date",render:r=>fmtDate(r.created_at)},
-    ],d.waitlist||[]);
+    ],rows);
   }
 }
 function render(){renderStats();renderTable()}
@@ -223,6 +259,7 @@ document.querySelectorAll(".tab").forEach(btn=>{
 els.loginBtn.addEventListener("click",()=>{state.key=els.adminKey.value;loadAdmin()});
 els.adminKey.addEventListener("keydown",e=>{if(e.key==="Enter"){state.key=els.adminKey.value;loadAdmin()}});
 els.refreshBtn.addEventListener("click",loadAdmin);
+els.searchInput.addEventListener("input",renderTable);
 els.logoutBtn.addEventListener("click",()=>{localStorage.removeItem("nirman_admin_key");state.key="";state.data=null;els.adminKey.value="";setLoggedIn(false)});
 
 setLoggedIn(false);
