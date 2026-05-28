@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nirman.AI — Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Syne+Mono&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;--surface:#0f0f0f;--card:#151515;--border:rgba(255,255,255,.08);
+  --border2:rgba(255,255,255,.14);--white:#fff;--dim:rgba(255,255,255,.48);
+  --dimmer:rgba(255,255,255,.22);--accent:#7EB8C9;--accent2:#a8d4e0;
+  --accent-bg:rgba(126,184,201,.08);--red:#f87171;--green:#4ade80;
+  --syne:'Syne',sans-serif;--mono:'Syne Mono',monospace;--body:'Outfit',sans-serif;
+  --radius:2px;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--white);font-family:var(--body);font-weight:300}
+button,input{font-family:var(--body)}
+a{color:inherit;text-decoration:none}
+.shell{min-height:100vh}
+.topbar{height:72px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 40px;background:rgba(8,8,8,.94);position:sticky;top:0;z-index:10}
+.logo{font-family:var(--syne);font-size:1.15rem;font-weight:800}.logo span{color:var(--accent)}
+.top-actions{display:flex;gap:12px;align-items:center}
+.btn,.link-btn{border:1px solid var(--border2);background:transparent;color:var(--dim);padding:10px 16px;border-radius:var(--radius);font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:.2s}
+.btn:hover,.link-btn:hover{border-color:var(--accent);color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.btn.primary:hover{background:var(--accent2);color:var(--bg)}
+.wrap{padding:40px;max-width:1440px;margin:0 auto}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;margin-bottom:32px}
+.eyebrow{font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+h1{font-family:var(--syne);font-size:2rem;letter-spacing:-.01em}
+.sub{color:var(--dim);font-size:.9rem;margin-top:8px}
+.login{max-width:440px;margin:12vh auto 0;border:1px solid var(--border);background:var(--surface);padding:32px}
+.field{margin-top:24px}
+.field label{display:block;font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dimmer);margin-bottom:10px}
+.field input{width:100%;background:#0a0a0a;border:1px solid var(--border);padding:14px 16px;color:var(--white);outline:none;border-radius:var(--radius)}
+.field input:focus{border-color:var(--accent)}
+.error{margin-top:14px;color:var(--red);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
+.stat{background:var(--surface);padding:24px}
+.stat-num{font-family:var(--syne);font-size:2rem;font-weight:800;line-height:1}
+.stat-label{font-family:var(--mono);font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.tab{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:12px 20px;color:var(--dim);font-family:var(--mono);font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.panel{border:1px solid var(--border);background:var(--surface);overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:820px}
+th{font-family:var(--mono);font-size:.55rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);text-align:left;padding:14px 18px;background:#0b0b0b;border-bottom:1px solid var(--border)}
+td{font-size:.84rem;padding:16px 18px;border-bottom:1px solid var(--border);color:rgba(255,255,255,.78);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--card)}
+.strong{font-family:var(--syne);font-weight:700;color:var(--white)}
+.mono{font-family:var(--mono);font-size:.58rem;letter-spacing:.09em;color:var(--dim)}
+.badge{display:inline-block;font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--border2);color:var(--dim)}
+.badge.analyzed{color:var(--accent);border-color:rgba(126,184,201,.35);background:var(--accent-bg)}
+.badge.uploaded{color:var(--green);border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.08)}
+.empty{padding:48px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase}
+.hidden{display:none}
+@media(max-width:900px){
+  .topbar,.wrap{padding-left:20px;padding-right:20px}
+  .hero{align-items:flex-start;flex-direction:column}
+  .stats{grid-template-columns:1fr 1fr}
+  .tabs{overflow-x:auto}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <a class="logo" href="/">Nirman<span>.AI</span></a>
+    <div class="top-actions">
+      <a class="link-btn" id="exportLink" href="#" target="_blank" rel="noreferrer">Export Waitlist</a>
+      <button class="btn" id="logoutBtn">Lock</button>
+    </div>
+  </div>
+
+  <main class="wrap">
+    <section id="loginView" class="login">
+      <div class="eyebrow">Admin access</div>
+      <h1>Data console</h1>
+      <p class="sub">Enter the admin key to view users, projects, waitlist signups and operating counts.</p>
+      <div class="field">
+        <label for="adminKey">Admin key</label>
+        <input id="adminKey" type="password" placeholder="nirman-admin-2025"/>
+      </div>
+      <button class="btn primary" id="loginBtn" style="width:100%;margin-top:18px">Open Admin</button>
+      <div id="error" class="error hidden"></div>
+    </section>
+
+    <section id="adminView" class="hidden">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">Operations</div>
+          <h1>Nirman.AI admin</h1>
+          <p class="sub">Live database view from the Render backend.</p>
+        </div>
+        <button class="btn primary" id="refreshBtn">Refresh</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="users">Users</button>
+        <button class="tab" data-tab="projects">Projects</button>
+        <button class="tab" data-tab="waitlist">Waitlist</button>
+      </div>
+
+      <div class="panel" id="tablePanel"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const API="https://nirman-backend-n9ms.onrender.com";
+const els={
+  loginView:document.getElementById("loginView"),
+  adminView:document.getElementById("adminView"),
+  adminKey:document.getElementById("adminKey"),
+  loginBtn:document.getElementById("loginBtn"),
+  refreshBtn:document.getElementById("refreshBtn"),
+  logoutBtn:document.getElementById("logoutBtn"),
+  exportLink:document.getElementById("exportLink"),
+  error:document.getElementById("error"),
+  stats:document.getElementById("stats"),
+  tablePanel:document.getElementById("tablePanel"),
+};
+let state={key:localStorage.getItem("nirman_admin_key")||"",tab:"users",data:null};
+
+function esc(value){
+  return String(value??"—").replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]));
+}
+function fmtDate(value){
+  if(!value)return "—";
+  return new Date(value).toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
+}
+function fmtBytes(value){
+  if(!value)return "—";
+  if(value>1048576)return `${(value/1048576).toFixed(1)} MB`;
+  return `${Math.round(value/1024)} KB`;
+}
+function showError(msg){
+  els.error.textContent=msg;
+  els.error.classList.remove("hidden");
+}
+function setLoggedIn(on){
+  els.loginView.classList.toggle("hidden",on);
+  els.adminView.classList.toggle("hidden",!on);
+  els.exportLink.style.display=on?"inline-block":"none";
+  els.logoutBtn.style.display=on?"inline-block":"none";
+}
+async function loadAdmin(){
+  const key=state.key.trim();
+  if(!key){showError("Admin key is required.");return}
+  els.error.classList.add("hidden");
+  const res=await fetch(`${API}/api/admin/summary?key=${encodeURIComponent(key)}`);
+  const data=await res.json();
+  if(!data.success){showError(data.message||"Unauthorized.");setLoggedIn(false);return}
+  localStorage.setItem("nirman_admin_key",key);
+  state.data=data;
+  els.exportLink.href=`${API}/api/waitlist/export?key=${encodeURIComponent(key)}`;
+  setLoggedIn(true);
+  render();
+}
+function renderStats(){
+  const c=state.data?.counts||{};
+  const items=[
+    ["Users",c.users],
+    ["Projects",c.projects],
+    ["Waitlist",c.waitlist],
+    ["Uploaded",c.uploaded_drawings],
+    ["Analyzed",c.analyzed_projects],
+  ];
+  els.stats.innerHTML=items.map(([label,value])=>`<div class="stat"><div class="stat-num">${esc(value||0)}</div><div class="stat-label">${esc(label)}</div></div>`).join("");
+}
+function table(headers, rows){
+  if(!rows.length)return `<div class="empty">No records yet</div>`;
+  return `<table><thead><tr>${headers.map(h=>`<th>${esc(h.label)}</th>`).join("")}</tr></thead><tbody>${rows.map(row=>`<tr>${headers.map(h=>`<td>${h.render(row)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+}
+function renderTable(){
+  const d=state.data;
+  if(state.tab==="users"){
+    els.tablePanel.innerHTML=table([
+      {label:"Name",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.email)}</div>`},
+      {label:"Company",render:r=>esc(r.company)},
+      {label:"Role",render:r=>esc(r.role)},
+      {label:"City",render:r=>esc(r.city)},
+      {label:"Joined",render:r=>fmtDate(r.created_at)},
+    ],d.users||[]);
+  }
+  if(state.tab==="projects"){
+    els.tablePanel.innerHTML=table([
+      {label:"Project",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.address)}</div>`},
+      {label:"Owner",render:r=>`<div>${esc(r.user_name)}</div><div class="mono">${esc(r.user_email)}</div>`},
+      {label:"Type",render:r=>esc((r.project_type||"").replace("_"," "))},
+      {label:"Status",render:r=>`<span class="badge ${esc(r.status)}">${esc(r.status)}</span>`},
+      {label:"File",render:r=>`<div>${esc(r.file_name)}</div><div class="mono">${fmtBytes(r.file_size)}</div>`},
+      {label:"Updated",render:r=>fmtDate(r.updated_at)},
+    ],d.projects||[]);
+  }
+  if(state.tab==="waitlist"){
+    els.tablePanel.innerHTML=table([
+      {label:"Name",render:r=>`<div class="strong">${esc(r.name)}</div><div class="mono">${esc(r.email)}</div>`},
+      {label:"Phone",render:r=>esc(r.phone)},
+      {label:"Role",render:r=>esc(r.role)},
+      {label:"City",render:r=>esc(r.city)},
+      {label:"Date",render:r=>fmtDate(r.created_at)},
+    ],d.waitlist||[]);
+  }
+}
+function render(){renderStats();renderTable()}
+
+document.querySelectorAll(".tab").forEach(btn=>{
+  btn.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    state.tab=btn.dataset.tab;
+    renderTable();
+  });
+});
+els.loginBtn.addEventListener("click",()=>{state.key=els.adminKey.value;loadAdmin()});
+els.adminKey.addEventListener("keydown",e=>{if(e.key==="Enter"){state.key=els.adminKey.value;loadAdmin()}});
+els.refreshBtn.addEventListener("click",loadAdmin);
+els.logoutBtn.addEventListener("click",()=>{localStorage.removeItem("nirman_admin_key");state.key="";state.data=null;els.adminKey.value="";setLoggedIn(false)});
+
+setLoggedIn(false);
+if(state.key){els.adminKey.value=state.key;loadAdmin()}
+</script>
+</body>
+</html>

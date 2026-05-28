@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nirman.AI — AI Construction Intelligence for India</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Syne+Mono&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080808;--surface:#0f0f0f;--card:#141414;--card2:#1a1a1a;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);
+  --white:#ffffff;--dim:rgba(255,255,255,0.45);--dimmer:rgba(255,255,255,0.2);
+  --accent:#7EB8C9;--accent2:#a8d4e0;--accent-bg:rgba(126,184,201,0.08);
+  --green:#4ade80;--red:#f87171;--yellow:#fbbf24;
+  --syne:'Syne',sans-serif;--mono:'Syne Mono',monospace;--body:'Outfit',sans-serif;
+  --radius:2px;--sidebar:240px;
+}
+html{scroll-behavior:smooth}
+body{height:100%;background:var(--bg);color:var(--white);font-family:var(--body);font-weight:300;overflow-x:hidden}
+
+/* ── LANDING PAGE SPECIFIC CURSOR ── */
+.landing-container { cursor: none; }
+.landing-container a, .landing-container button, .landing-container input, .landing-container select { cursor: none; }
+
+.c-dot{position:fixed;width:6px;height:6px;background:var(--accent);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%)}
+.c-ring{position:fixed;width:28px;height:28px;border:1px solid rgba(126,184,201,.4);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width .2s,height .2s,opacity .2s;opacity:.6}
+
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:24px 60px;background:rgba(8,8,8,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.nav-logo{font-family:var(--syne);font-size:1.3rem;font-weight:700;color:var(--white);text-decoration:none;letter-spacing:.02em}
+.nav-logo span{color:var(--accent)}
+.nav-links{display:flex;gap:40px;list-style:none}
+.nav-links a{font-family:var(--mono);font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);text-decoration:none;transition:color .3s}
+.nav-links a:hover{color:var(--white)}
+.nav-actions {display:flex; gap: 16px; align-items: center;}
+.nav-cta{font-family:var(--mono);font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;padding:12px 28px;background:transparent;border:1px solid rgba(126,184,201,.4);color:var(--accent);transition:all .3s;text-decoration:none}
+.nav-cta:hover{background:var(--accent);color:var(--bg)}
+.nav-login{background:var(--accent);color:var(--bg);}
+.nav-login:hover{background:var(--accent2);color:var(--bg);}
+
+/* HERO */
+.hero{min-height:100vh;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;padding:0 60px 100px}
+.hero-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(126,184,201,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(126,184,201,.05) 1px,transparent 1px);background-size:60px 60px}
+.hero-glow{position:absolute;top:50%;right:8%;width:500px;height:500px;background:radial-gradient(circle,rgba(126,184,201,.07) 0%,transparent 70%);transform:translate(50%,-50%);pointer-events:none}
+
+.hero-plan{position:absolute;top:50%;right:6%;transform:translateY(-52%);width:min(500px,48vw);opacity:0;animation:planReveal 1.4s .5s cubic-bezier(.16,1,.3,1) forwards}
+@keyframes planReveal{from{opacity:0;transform:translateY(-48%) scale(.95)}to{opacity:1;transform:translateY(-52%) scale(1)}}
+
+.hero-content{position:relative;z-index:2;max-width:600px}
+.hero-tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:32px;opacity:0;animation:up .7s .2s forwards}
+.hero-h1{font-family:var(--syne);font-size:clamp(3rem,5.5vw,6.5rem);font-weight:800;line-height:1;letter-spacing:-.02em;opacity:0;animation:up .8s .35s forwards}
+.hero-h1 .accent{color:var(--accent)}
+.hero-sub{margin-top:28px;font-size:1rem;line-height:1.75;color:var(--dim);max-width:460px;opacity:0;animation:up .8s .5s forwards}
+.hero-actions{margin-top:48px;display:flex;align-items:center;gap:32px;opacity:0;animation:up .8s .65s forwards}
+.btn-main{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;padding:18px 44px;background:var(--accent);color:var(--bg);border:none;text-decoration:none;transition:background .3s,transform .2s;display:inline-block}
+.btn-main:hover{background:var(--accent2);transform:translateY(-1px)}
+.btn-ghost{font-family:var(--mono);font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);text-decoration:none;border-bottom:1px solid var(--dimmer);padding-bottom:2px;transition:color .3s,border-color .3s}
+.btn-ghost:hover{color:var(--white);border-color:var(--white)}
+
+.hero-stats{position:absolute;bottom:40px;right:60px;display:flex;gap:60px;z-index:2;opacity:0;animation:up .8s .9s forwards}
+.stat-item{text-align:right}
+.stat-num{font-family:var(--syne);font-size:2.2rem;font-weight:700;color:var(--white);line-height:1}
+.stat-sub{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+
+.scroll-hint{position:absolute;bottom:44px;left:60px;z-index:2;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dimmer);opacity:0;animation:up .8s 1.1s forwards}
+.scroll-line{width:40px;height:1px;background:var(--dimmer)}
+
+@keyframes up{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+
+/* TICKER */
+.ticker{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:16px 0;overflow:hidden}
+.ticker-track{display:flex;white-space:nowrap;animation:ticker 30s linear infinite}
+.ticker-item{font-family:var(--mono);font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);padding:0 48px;flex-shrink:0}
+.ticker-dot{color:var(--accent);padding:0 4px}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* SECTIONS */
+section{padding:120px 60px}
+.section-label{font-family:var(--mono);font-size:.6rem;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:20px}
+.section-h2{font-family:var(--syne);font-size:clamp(2rem,3.5vw,4rem);font-weight:700;line-height:1.05;letter-spacing:-.01em}
+
+/* PROBLEM */
+.problem{background:var(--bg);border-top:1px solid var(--border)}
+.problem-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:100px;align-items:center}
+.problem-left .section-h2{margin-bottom:32px}
+.problem-left .section-h2 em{font-style:italic;color:var(--accent)}
+.problem-body{color:var(--dim);line-height:1.85;font-size:.95rem;max-width:420px;margin-top:16px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);border:1px solid var(--border)}
+.sg-cell{background:var(--surface);padding:44px 36px;transition:background .3s}
+.sg-cell:hover{background:var(--card)}
+.sg-num{font-family:var(--syne);font-size:2.8rem;font-weight:700;color:var(--white);line-height:1}
+.sg-num span{font-size:1.4rem;color:var(--accent)}
+.sg-label{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:12px}
+
+/* HOW */
+.how{background:var(--surface);border-top:1px solid var(--border)}
+.how-inner{max-width:1280px;margin:0 auto}
+.how-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:80px;padding-bottom:48px;border-bottom:1px solid var(--border)}
+.how-sub{max-width:300px;font-size:.88rem;line-height:1.8;color:var(--dim);text-align:right}
+.steps-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.step-card{background:var(--bg);padding:52px 44px;position:relative;overflow:hidden;transition:background .4s}
+.step-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform .5s cubic-bezier(.77,0,.175,1)}
+.step-card:hover{background:var(--card)}
+.step-card:hover::after{transform:scaleX(1)}
+.step-num{font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;color:var(--accent);margin-bottom:36px}
+.step-title{font-family:var(--syne);font-size:1.5rem;font-weight:600;line-height:1.2;margin-bottom:20px}
+.step-body{font-size:.88rem;line-height:1.85;color:var(--dim)}
+
+/* FOR WHO */
+.forwho{background:var(--bg);border-top:1px solid var(--border);position:relative;overflow:hidden}
+.forwho::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 50% at 80% 50%,rgba(126,184,201,.04),transparent);pointer-events:none}
+.forwho-inner{max-width:1280px;margin:0 auto;position:relative;z-index:1}
+.forwho-header{margin-bottom:72px}
+.forwho-header .section-h2 em{font-style:italic;color:var(--accent)}
+.who-list{border-top:1px solid var(--border)}
+.who-item{display:grid;grid-template-columns:56px 1fr 1fr 140px;align-items:center;gap:48px;padding:44px 0;border-bottom:1px solid var(--border);transition:padding-left .3s;cursor:default}
+.who-item:hover{padding-left:8px}
+.who-item:hover .who-name{color:var(--accent)}
+.who-idx{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;color:var(--dimmer)}
+.who-name{font-family:var(--syne);font-size:1.7rem;font-weight:600;transition:color .3s}
+.who-desc{font-size:.85rem;line-height:1.75;color:var(--dim)}
+.who-tag{font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(126,184,201,.25);padding:8px 14px;text-align:center;white-space:nowrap}
+
+/* FEATURES */
+.features{background:var(--surface);border-top:1px solid var(--border)}
+.features-inner{max-width:1280px;margin:0 auto}
+.features-header{margin-bottom:80px}
+.feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.feat-card{background:var(--bg);padding:48px 40px;position:relative;overflow:hidden;transition:background .3s}
+.feat-card:hover{background:var(--card)}
+.feat-icon{width:48px;height:48px;margin-bottom:32px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.feat-icon svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.5}
+.feat-title{font-family:var(--syne);font-size:1.15rem;font-weight:600;margin-bottom:16px}
+.feat-body{font-size:.85rem;line-height:1.8;color:var(--dim)}
+.feat-badge{position:absolute;top:20px;right:20px;font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;padding:5px 10px;background:rgba(126,184,201,.1);color:var(--accent);border:1px solid rgba(126,184,201,.2)}
+
+/* INDIA */
+.india{background:var(--bg);border-top:1px solid var(--border)}
+.india-inner{max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:100px;align-items:start}
+.india-left .section-h2 em{font-style:italic;color:var(--accent)}
+.india-desc{margin-top:24px;color:var(--dim);line-height:1.85;font-size:.92rem;max-width:420px}
+.india-right{padding-top:20px}
+.india-list{list-style:none;border-top:1px solid var(--border)}
+.india-row{display:flex;align-items:flex-start;gap:20px;padding:28px 0;border-bottom:1px solid var(--border)}
+.india-check{width:20px;height:20px;flex-shrink:0;margin-top:2px;border:1px solid var(--accent);display:flex;align-items:center;justify-content:center}
+.india-check::after{content:'';width:8px;height:8px;background:var(--accent);display:block}
+.india-text{font-size:.9rem;line-height:1.7;color:var(--dim)}
+.india-text strong{color:var(--white);font-weight:500}
+
+/* WAITLIST */
+.waitlist{background:var(--surface);border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr}
+.wl-left{padding:120px 80px;background:linear-gradient(135deg,#0a1a1f 0%,#080808 100%);position:relative;overflow:hidden}
+.wl-left::before{content:'';position:absolute;width:600px;height:600px;border-radius:50%;background:radial-gradient(circle,rgba(126,184,201,.06) 0%,transparent 60%);top:-100px;right:-200px;pointer-events:none}
+.wl-label{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:28px;position:relative;z-index:1}
+.wl-title{font-family:var(--syne);font-size:clamp(2.2rem,3.5vw,4rem);font-weight:700;line-height:1.05;position:relative;z-index:1}
+.wl-title em{font-style:italic;color:var(--accent)}
+.wl-body{margin-top:24px;font-size:.9rem;line-height:1.8;color:var(--dim);max-width:360px;position:relative;z-index:1}
+.wl-cities{margin-top:40px;display:flex;gap:12px;flex-wrap:wrap;position:relative;z-index:1}
+.city-tag{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;padding:8px 16px;border:1px solid var(--border);color:var(--dim)}
+.city-tag.active{border-color:rgba(126,184,201,.4);color:var(--accent);background:rgba(126,184,201,.06)}
+.wl-right{padding:120px 80px;background:var(--bg)}
+.wl-count{margin-bottom:48px}
+.wl-count-num{font-family:var(--syne);font-size:3rem;font-weight:700;color:var(--white);line-height:1}
+.wl-count-label{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:8px}
+.form-row{margin-bottom:20px}
+.form-label{display:block;font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dimmer);margin-bottom:10px}
+.form-input,.form-select{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(255,255,255,.12);padding:12px 0;font-family:var(--body);font-size:.95rem;font-weight:300;color:var(--white);outline:none;transition:border-color .3s;}
+.form-input:focus,.form-select:focus{border-color:var(--accent)}
+.form-input::placeholder{color:rgba(255,255,255,.2)}
+.form-select{appearance:none;-webkit-appearance:none}
+.form-select option{background:var(--bg)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 40px}
+.submit-btn{margin-top:36px;width:100%;padding:18px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;position:relative;overflow:hidden;transition:background .3s}
+.submit-btn::before{content:'';position:absolute;inset:0;background:var(--accent2);transform:translateX(-101%);transition:transform .4s cubic-bezier(.77,0,.175,1)}
+.submit-btn:hover::before{transform:translateX(0)}
+.submit-btn span{position:relative;z-index:1}
+.success-state{display:none;padding:60px 0;text-align:center}
+.success-icon{width:56px;height:56px;border:1px solid var(--accent);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 28px;color:var(--accent);font-size:1.4rem}
+.success-title{font-family:var(--syne);font-size:2rem;font-weight:700;margin-bottom:12px}
+.success-body{font-size:.88rem;color:var(--dim);line-height:1.75}
+
+/* CTA BAND */
+.cta-band{background:var(--accent);padding:80px 60px;display:flex;align-items:center;justify-content:space-between}
+.cta-text{font-family:var(--syne);font-size:clamp(1.8rem,3vw,3rem);font-weight:700;color:var(--bg);line-height:1.1}
+.cta-text em{font-style:italic}
+.btn-dark{font-family:var(--mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;padding:18px 44px;background:var(--bg);color:var(--white);border:none;text-decoration:none;transition:background .3s;white-space:nowrap;flex-shrink:0}
+.btn-dark:hover{background:#1a1a1a}
+
+/* FOOTER */
+footer{background:var(--bg);padding:60px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.footer-logo{font-family:var(--syne);font-size:1.2rem;font-weight:700;color:var(--white)}
+.footer-logo span{color:var(--accent)}
+.footer-meta{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dimmer);line-height:2.2;text-align:right}
+
+/* REVEAL ANIMATIONS */
+.reveal-left{opacity:0;transform:translateX(-40px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+.reveal-right{opacity:0;transform:translateX(40px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+.reveal-up{opacity:0;transform:translateY(30px);transition:opacity .9s cubic-bezier(.16,1,.3,1),transform .9s cubic-bezier(.16,1,.3,1)}
+.reveal-left.visible,.reveal-right.visible,.reveal-up.visible{opacity:1;transform:none}
+.d1{transition-delay:.1s}.d2{transition-delay:.2s}.d3{transition-delay:.3s}.d4{transition-delay:.4s}.d5{transition-delay:.5s}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── APP OVERRIDES & STYLES ── */
+button{cursor:pointer;font-family:var(--body)}
+input,select,textarea{font-family:var(--body)}
+a{text-decoration:none;color:inherit}
+
+/* ── AUTH SCREEN ── */
+.auth-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.auth-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(126,184,201,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(126,184,201,.04) 1px,transparent 1px);background-size:60px 60px}
+.auth-glow{position:absolute;width:600px;height:600px;background:radial-gradient(circle,rgba(126,184,201,.06) 0%,transparent 70%);top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none}
+.auth-box{position:relative;z-index:2;width:100%;max-width:440px;padding:0 24px}
+.auth-logo{font-family:var(--syne);font-size:1.8rem;font-weight:800;color:var(--white);margin-bottom:8px;letter-spacing:-.01em}
+.auth-logo span{color:var(--accent)}
+.auth-tagline{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:48px}
+.auth-tabs{display:flex;gap:0;margin-bottom:40px;border-bottom:1px solid var(--border)}
+.auth-tab{font-family:var(--mono);font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;padding:12px 24px;background:none;border:none;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.auth-tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+.form-field{margin-bottom:20px}
+.form-field label{display:block;font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dimmer);margin-bottom:10px}
+.form-field input,.form-field select,.form-field textarea{width:100%;background:var(--surface);border:1px solid var(--border);padding:14px 16px;font-family:var(--body);font-size:.9rem;font-weight:300;color:var(--white);outline:none;transition:border-color .2s;border-radius:var(--radius)}
+.form-field input:focus,.form-field select:focus,.form-field textarea:focus{border-color:var(--accent)}
+.form-field input::placeholder{color:var(--dimmer)}
+.form-field textarea{min-height:92px;resize:vertical;line-height:1.5}
+.form-field select option{background:var(--bg)}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
+.btn-accent{width:100%;padding:16px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;cursor:pointer;transition:background .2s;margin-top:8px;border-radius:var(--radius)}
+.btn-accent:hover{background:var(--accent2)}
+.btn-accent:disabled{opacity:.5;cursor:not-allowed}
+.auth-error{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;color:var(--red);margin-top:12px;text-align:center}
+.auth-switch{margin-top:24px;text-align:center;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.auth-switch button{background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;text-decoration:underline}
+
+/* ── APP SHELL ── */
+.app-shell{display:grid;grid-template-columns:var(--sidebar) 1fr;min-height:100vh}
+
+/* ── SIDEBAR ── */
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-logo{padding:28px 24px 20px;border-bottom:1px solid var(--border)}
+.sidebar-logo-text{font-family:var(--syne);font-size:1.1rem;font-weight:800;letter-spacing:-.01em}
+.sidebar-logo-text span{color:var(--accent)}
+.sidebar-logo-sub{font-family:var(--mono);font-size:.52rem;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-top:4px}
+.sidebar-nav{padding:20px 12px;flex:1}
+.nav-section-label{font-family:var(--mono);font-size:.52rem;letter-spacing:.2em;text-transform:uppercase;color:var(--dimmer);padding:0 12px;margin-bottom:8px;margin-top:16px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius);color:var(--dim);cursor:pointer;transition:all .2s;font-size:.88rem;border:none;background:none;width:100%;text-align:left}
+.nav-item svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.5;flex-shrink:0}
+.nav-item:hover{color:var(--white);background:var(--card)}
+.nav-item.active{color:var(--accent);background:var(--accent-bg)}
+.sidebar-footer{padding:20px 24px;border-top:1px solid var(--border)}
+.user-info{display:flex;align-items:center;gap:12px}
+.user-avatar{width:32px;height:32px;background:var(--accent-bg);border:1px solid rgba(126,184,201,.3);display:flex;align-items:center;justify-content:center;font-family:var(--syne);font-size:.8rem;font-weight:700;color:var(--accent);flex-shrink:0}
+.user-name{font-size:.82rem;color:var(--white);font-weight:400}
+.user-role{font-family:var(--mono);font-size:.52rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.btn-signout{margin-top:12px;width:100%;padding:8px;background:none;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:var(--radius)}
+.btn-signout:hover{border-color:var(--red);color:var(--red)}
+
+/* ── MAIN CONTENT ── */
+.main{background:var(--bg);overflow-y:auto;min-height:100vh}
+.page-header{padding:40px 48px 32px;border-bottom:1px solid var(--border)}
+.page-title{font-family:var(--syne);font-size:1.8rem;font-weight:700;letter-spacing:-.01em}
+.page-subtitle{font-size:.88rem;color:var(--dim);margin-top:6px}
+.page-body{padding:40px 48px}
+
+/* ── DASHBOARD ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:48px}
+.stat-card{background:var(--surface);padding:32px 28px;transition:background .2s}
+.stat-card:hover{background:var(--card)}
+.stat-card-num{font-family:var(--syne);font-size:2.2rem;font-weight:700;color:var(--white);line-height:1}
+.stat-card-num span{font-size:1rem;color:var(--accent)}
+.stat-card-label{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:10px}
+
+/* ── PROJECTS LIST ── */
+.projects-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
+.projects-title{font-family:var(--syne);font-size:1.1rem;font-weight:600}
+.btn-new{display:flex;align-items:center;gap:8px;padding:10px 24px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:background .2s;border-radius:var(--radius)}
+.btn-new:hover{background:var(--accent2)}
+.btn-new svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+
+.project-card{background:var(--surface);border:1px solid var(--border);padding:24px 28px;margin-bottom:1px;display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:24px;transition:background .2s;cursor:pointer}
+.project-card:hover{background:var(--card)}
+.project-card:first-child{border-radius:var(--radius) var(--radius) 0 0}
+.project-card:last-child{border-radius:0 0 var(--radius) var(--radius)}
+.project-card:only-child{border-radius:var(--radius)}
+.project-name{font-family:var(--syne);font-size:1rem;font-weight:600;margin-bottom:4px}
+.project-meta{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.status-badge{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;border-radius:var(--radius)}
+.status-created{background:rgba(255,255,255,.05);color:var(--dim);border:1px solid var(--border)}
+.status-uploaded{background:rgba(251,191,36,.08);color:var(--yellow);border:1px solid rgba(251,191,36,.2)}
+.status-analyzed{background:rgba(126,184,201,.08);color:var(--accent);border:1px solid rgba(126,184,201,.2)}
+.btn-icon{background:none;border:1px solid var(--border);padding:8px;color:var(--dim);cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;border-radius:var(--radius)}
+.btn-icon:hover{border-color:var(--red);color:var(--red)}
+.btn-icon svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5}
+
+.empty-state{text-align:center;padding:80px 40px;border:1px dashed var(--border);border-radius:var(--radius)}
+.empty-icon{width:64px;height:64px;margin:0 auto 24px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center}
+.empty-icon svg{width:28px;height:28px;stroke:var(--dim);fill:none;stroke-width:1.5}
+.empty-title{font-family:var(--syne);font-size:1.2rem;font-weight:600;margin-bottom:8px}
+.empty-body{font-size:.88rem;color:var(--dim);margin-bottom:32px}
+
+/* ── MODAL ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(4px)}
+.modal{background:var(--surface);border:1px solid var(--border);width:100%;max-width:520px;max-height:90vh;overflow-y:auto;border-radius:var(--radius)}
+.modal-header{padding:28px 32px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-family:var(--syne);font-size:1.1rem;font-weight:700}
+.modal-close{background:none;border:none;color:var(--dim);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center}
+.modal-close svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2}
+.modal-body{padding:28px 32px}
+.modal-footer{padding:20px 32px;border-top:1px solid var(--border);display:flex;gap:12px;justify-content:flex-end}
+.btn-ghost-sm{padding:10px 20px;background:none;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:var(--radius)}
+.btn-ghost-sm:hover{border-color:var(--white);color:var(--white)}
+.btn-primary-sm{padding:10px 24px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s;border-radius:var(--radius)}
+.btn-primary-sm:hover{background:var(--accent2)}
+.btn-primary-sm:disabled{opacity:.5;cursor:not-allowed}
+
+/* ── PROJECT DETAIL ── */
+.detail-header{padding:40px 48px 0}
+.back-btn{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);background:none;border:none;cursor:pointer;padding:0;margin-bottom:24px;transition:color .2s}
+.back-btn:hover{color:var(--white)}
+.back-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2}
+.detail-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.detail-name{font-family:var(--syne);font-size:2rem;font-weight:700;letter-spacing:-.01em}
+.detail-address{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+.detail-actions{display:flex;gap:12px;flex-shrink:0}
+.btn-outline{padding:10px 24px;background:none;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:var(--radius)}
+.btn-outline:hover{border-color:var(--white);color:var(--white)}
+
+/* Upload zone */
+.upload-zone{border:1px dashed rgba(126,184,201,.3);padding:60px 40px;text-align:center;cursor:pointer;transition:all .3s;border-radius:var(--radius);position:relative}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--accent);background:var(--accent-bg)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{width:56px;height:56px;margin:0 auto 20px;border:1px solid rgba(126,184,201,.3);display:flex;align-items:center;justify-content:center}
+.upload-icon svg{width:24px;height:24px;stroke:var(--accent);fill:none;stroke-width:1.5}
+.upload-title{font-family:var(--syne);font-size:1rem;font-weight:600;margin-bottom:8px}
+.upload-sub{font-size:.82rem;color:var(--dim)}
+.upload-formats{font-family:var(--mono);font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer);margin-top:12px}
+
+/* Analysis stages */
+.stage-track{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:40px}
+.stage{padding:24px 20px;background:var(--surface);position:relative}
+.stage.done{background:var(--accent-bg)}
+.stage-num{font-family:var(--mono);font-size:.58rem;letter-spacing:.2em;color:var(--dimmer);margin-bottom:8px}
+.stage.done .stage-num{color:var(--accent)}
+.stage-label{font-family:var(--syne);font-size:.9rem;font-weight:600}
+.stage.done .stage-label{color:var(--accent)}
+.stage-sub{font-size:.78rem;color:var(--dim);margin-top:4px}
+
+/* Analysis results */
+.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:40px}
+.info-card{background:var(--surface);border:1px solid var(--border);padding:28px;border-radius:var(--radius)}
+.info-card-title{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:20px}
+.info-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+.info-row:last-child{border-bottom:none}
+.info-key{font-size:.82rem;color:var(--dim)}
+.info-val{font-family:var(--syne);font-size:.9rem;font-weight:600;text-align:right}
+
+/* Unit distribution */
+.unit-bars{margin-top:8px}
+.unit-bar-row{margin-bottom:16px}
+.unit-bar-header{display:flex;justify-content:space-between;margin-bottom:6px;font-size:.82rem}
+.unit-bar-label{color:var(--dim)}
+.unit-bar-count{font-family:var(--syne);font-weight:600;color:var(--accent)}
+.unit-bar-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.unit-bar-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .8s cubic-bezier(.16,1,.3,1)}
+
+/* Cost Report */
+.cost-summary{background:var(--accent);padding:40px 48px;margin-bottom:1px}
+.cost-summary-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px}
+.cost-sum-item{}
+.cost-sum-label{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;text-transform:uppercase;color:rgba(8,8,8,.6);margin-bottom:8px}
+.cost-sum-value{font-family:var(--syne);font-size:1.8rem;font-weight:800;color:var(--bg);line-height:1}
+.cost-sum-sub{font-size:.78rem;color:rgba(8,8,8,.5);margin-top:4px}
+
+.division-list{background:var(--surface);border:1px solid var(--border)}
+.division-item{border-bottom:1px solid var(--border);overflow:hidden}
+.division-item:last-child{border-bottom:none}
+.division-header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;cursor:pointer;transition:background .2s}
+.division-header:hover{background:var(--card)}
+.division-left{display:flex;align-items:center;gap:16px}
+.division-num{font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;color:var(--dimmer);width:28px}
+.division-name{font-size:.9rem;font-weight:500}
+.division-right{display:flex;align-items:center;gap:20px}
+.division-amount{font-family:var(--syne);font-size:.95rem;font-weight:700;color:var(--accent)}
+.division-chevron{width:16px;height:16px;stroke:var(--dim);fill:none;stroke-width:2;transition:transform .3s;flex-shrink:0}
+.division-chevron.open{transform:rotate(180deg)}
+.division-body{background:var(--bg);overflow:hidden;max-height:0;transition:max-height .4s cubic-bezier(.16,1,.3,1)}
+.division-body.open{max-height:600px}
+.line-items-table{width:100%;border-collapse:collapse}
+.line-items-table th{font-family:var(--mono);font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dimmer);padding:12px 28px;text-align:left;border-bottom:1px solid var(--border);background:var(--surface)}
+.line-items-table th:last-child{text-align:right}
+.line-items-table td{padding:12px 28px;font-size:.82rem;border-bottom:1px solid var(--border)}
+.line-items-table td:last-child{text-align:right;font-family:var(--syne);font-weight:600;color:var(--white)}
+.line-items-table tr:last-child td{border-bottom:none}
+.line-items-table tr:hover td{background:var(--card)}
+
+/* GST Summary */
+.gst-summary{background:var(--surface);border:1px solid var(--border);padding:28px 32px;margin-top:24px;border-radius:var(--radius)}
+.gst-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:.9rem}
+.gst-row:last-child{border-bottom:none;padding-top:16px;margin-top:4px}
+.gst-row.total{font-family:var(--syne);font-size:1.1rem;font-weight:700}
+.gst-row.total .gst-val{color:var(--accent)}
+.gst-label{color:var(--dim)}
+.gst-val{font-family:var(--syne);font-weight:600}
+
+/* Loading spinner */
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-state{text-align:center;padding:60px 40px}
+.loading-state p{font-family:var(--mono);font-size:.62rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:20px}
+
+/* Notification */
+.notif{position:fixed;bottom:32px;right:32px;z-index:2000;background:var(--surface);border:1px solid var(--border);padding:16px 20px;display:flex;align-items:center;gap:12px;min-width:280px;box-shadow:0 20px 60px rgba(0,0,0,.5);border-radius:var(--radius);animation:slideUp .3s cubic-bezier(.16,1,.3,1)}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.notif.success{border-color:rgba(74,222,128,.3)}
+.notif.error{border-color:rgba(248,113,113,.3)}
+.notif-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.notif.success .notif-dot{background:var(--green)}
+.notif.error .notif-dot{background:var(--red)}
+.notif-text{font-size:.85rem;flex:1}
+
+/* Confidence badge */
+.confidence{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;padding:4px 10px;border-radius:var(--radius);display:inline-block;margin-top:8px}
+.confidence.high{background:rgba(74,222,128,.1);color:var(--green);border:1px solid rgba(74,222,128,.2)}
+.confidence.medium{background:rgba(251,191,36,.1);color:var(--yellow);border:1px solid rgba(251,191,36,.2)}
+.confidence.low{background:rgba(248,113,113,.1);color:var(--red);border:1px solid rgba(248,113,113,.2)}
+
+/* Disclaimer */
+.disclaimer{font-family:var(--mono);font-size:.58rem;letter-spacing:.1em;color:var(--dimmer);line-height:1.6;padding:20px 28px;border-top:1px solid var(--border);background:var(--surface)}
+
+/* Review, edit and scenario simulator */
+.workflow-stack{display:grid;gap:24px;margin-bottom:40px}
+.review-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.review-list{display:grid;gap:10px}
+.review-pill{border:1px solid var(--border);background:var(--bg);padding:10px 12px;font-size:.82rem;color:var(--dim);border-radius:var(--radius)}
+.edit-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.edit-grid .form-field{margin-bottom:0}
+.edit-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
+.scenario-shell{display:grid;grid-template-columns:360px 1fr;gap:24px}
+.scenario-controls{background:var(--surface);border:1px solid var(--border);padding:24px;border-radius:var(--radius)}
+.scenario-controls .form-field{margin-bottom:16px}
+.scenario-controls input[type="range"]{width:100%;accent-color:var(--accent)}
+.scenario-main{display:grid;grid-template-columns:1fr 360px;gap:24px}
+.massing-card{background:#080808;border:1px solid var(--border);min-height:420px;position:relative;overflow:hidden;border-radius:var(--radius)}
+.massing-card canvas{width:100%;height:100%;display:block;min-height:420px}
+.massing-fallback{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:44px;perspective:900px;background:linear-gradient(180deg,#0a0a0a,#050505)}
+.massing-building{width:160px;transform:rotateX(58deg) rotateZ(-34deg);transform-style:preserve-3d}
+.massing-floor{height:14px;border:1px solid rgba(126,184,201,.45);background:rgba(126,184,201,.12);box-shadow:0 8px 26px rgba(126,184,201,.08);margin-bottom:3px}
+.scenario-summary{display:grid;gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:24px}
+.scenario-metric{background:var(--surface);padding:22px}
+.scenario-metric-label{font-family:var(--mono);font-size:.56rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.scenario-metric-value{font-family:var(--syne);font-size:1.55rem;font-weight:800;color:var(--white)}
+.scenario-metric-value.up{color:var(--red)}
+.scenario-metric-value.down{color:var(--green)}
+.affected-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
+.affected-row{display:flex;justify-content:space-between;gap:18px;padding:14px 18px;border-bottom:1px solid var(--border);font-size:.82rem}
+.affected-row:last-child{border-bottom:none}
+.saved-scenarios{margin-top:24px}
+.saved-row{display:flex;justify-content:space-between;gap:18px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.82rem}
+.saved-row:last-child{border-bottom:none}
+
+@media(max-width:960px){
+  nav{padding:20px 28px}
+  .nav-links{display:none}
+  section{padding:80px 28px}
+  .hero{padding:0 28px 80px}
+  .hero-plan{display:none}
+  .hero-stats{right:28px;gap:32px}
+  .problem-inner,.india-inner{grid-template-columns:1fr}
+  .steps-grid,.feat-grid{grid-template-columns:1fr}
+  .who-item{grid-template-columns:40px 1fr;gap:20px}
+  .who-desc,.who-tag{display:none}
+  .waitlist{grid-template-columns:1fr}
+  .wl-left,.wl-right{padding:80px 28px}
+  .form-grid{grid-template-columns:1fr}
+  .cta-band{flex-direction:column;gap:32px;text-align:center;padding:60px 28px}
+  footer{flex-direction:column;gap:24px;padding:40px 28px;text-align:left}
+  .footer-meta{text-align:left}
+}
+
+@media(max-width:900px){
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .stats-row{grid-template-columns:1fr 1fr}
+  .analysis-grid{grid-template-columns:1fr}
+  .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
+  .edit-grid{grid-template-columns:1fr 1fr}
+  .cost-summary-grid{grid-template-columns:1fr}
+  .page-body,.page-header,.detail-header{padding-left:24px;padding-right:24px}
+}
+</style>
+</head>
+<body>
+
+<div id="landing-container" class="landing-container">
+  
+  <div class="c-dot" id="cDot"></div>
+  <div class="c-ring" id="cRing"></div>
+
+  <nav>
+    <a href="#" class="nav-logo">Nirman<span>.AI</span></a>
+    <ul class="nav-links">
+      <li><a href="#how">How it works</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#waitlist">Early Access</a></li>
+    </ul>
+    <div class="nav-actions">
+      <a href="#waitlist" class="nav-cta">Request Access</a>
+      <button id="loginBtn" class="nav-cta nav-login">Login</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="hero-grid"></div>
+    <div class="hero-glow"></div>
+
+    <svg class="hero-plan" viewBox="0 0 560 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="g" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(126,184,201,0.06)" stroke-width=".5"/>
+        </pattern>
+      </defs>
+      <rect width="560" height="700" fill="url(#g)"/>
+      <rect x="60" y="40" width="440" height="620" stroke="rgba(126,184,201,0.25)" stroke-width="1.5"/>
+      <rect x="200" y="200" width="160" height="200" stroke="rgba(126,184,201,0.45)" stroke-width="1.5" fill="rgba(126,184,201,0.03)"/>
+      <rect x="220" y="220" width="50" height="80" stroke="rgba(126,184,201,0.35)" stroke-width="1"/>
+      <rect x="290" y="220" width="50" height="80" stroke="rgba(126,184,201,0.35)" stroke-width="1"/>
+      <rect x="220" y="310" width="120" height="70" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <line x1="220" y1="325" x2="340" y2="325" stroke="rgba(126,184,201,0.15)" stroke-width=".75"/>
+      <line x1="220" y1="340" x2="340" y2="340" stroke="rgba(126,184,201,0.15)" stroke-width=".75"/>
+      <line x1="220" y1="355" x2="340" y2="355" stroke="rgba(126,184,201,0.15)" stroke-width=".75"/>
+      <line x1="220" y1="370" x2="340" y2="370" stroke="rgba(126,184,201,0.15)" stroke-width=".75"/>
+      <rect x="60" y="40" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="130" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="220" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="310" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="400" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="490" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="580" width="130" height="80" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="40" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="130" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="220" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="310" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="400" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="490" width="130" height="90" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="370" y="580" width="130" height="80" stroke="rgba(126,184,201,0.3)" stroke-width="1"/>
+      <rect x="60" y="220" width="130" height="90" fill="rgba(126,184,201,0.07)" stroke="rgba(126,184,201,0.7)" stroke-width="1.5"/>
+      <rect x="370" y="400" width="130" height="90" fill="rgba(126,184,201,0.07)" stroke="rgba(126,184,201,0.7)" stroke-width="1.5"/>
+      <line x1="60" y1="20" x2="500" y2="20" stroke="rgba(126,184,201,0.15)" stroke-width=".75"/>
+      <line x1="60" y1="16" x2="60" y2="24" stroke="rgba(126,184,201,0.25)" stroke-width=".75"/>
+      <line x1="500" y1="16" x2="500" y2="24" stroke="rgba(126,184,201,0.25)" stroke-width=".75"/>
+      <text x="125" y="272" font-family="monospace" font-size="8" fill="rgba(126,184,201,0.45)" text-anchor="middle">2BHK</text>
+      <text x="435" y="452" font-family="monospace" font-size="8" fill="rgba(126,184,201,0.45)" text-anchor="middle">2BHK</text>
+      <text x="280" y="295" font-family="monospace" font-size="7" fill="rgba(126,184,201,0.35)" text-anchor="middle">CORE</text>
+      <circle cx="510" cy="680" r="14" stroke="rgba(126,184,201,0.2)" stroke-width=".75" fill="none"/>
+      <text x="510" y="668" font-family="monospace" font-size="7" fill="rgba(126,184,201,0.4)" text-anchor="middle">N</text>
+      <line x1="510" y1="670" x2="510" y2="690" stroke="rgba(126,184,201,0.35)" stroke-width="1"/>
+      <rect x="60" y="0" width="440" height="1.5" fill="rgba(126,184,201,0.5)">
+        <animate attributeName="y" values="40;660;40" dur="4s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.7;0.15;0.7" dur="4s" repeatCount="indefinite"/>
+      </rect>
+    </svg>
+
+    <div class="hero-content">
+      <p class="hero-tag">AI Construction Intelligence — Delhi NCR</p>
+      <h1 class="hero-h1">From plans<br>to cost<br><span class="accent">in minutes.</span></h1>
+      <p class="hero-sub">Nirman.AI reads your residential tower drawings and generates a complete, Delhi NCR-specific construction cost estimate. No spreadsheets. No waiting weeks.</p>
+      <div class="hero-actions">
+        <a href="#waitlist" class="btn-main">Request Early Access</a>
+        <a href="#how" class="btn-ghost">See how it works</a>
+      </div>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-num">30<span style="font-size:1.1rem;color:var(--accent)">min</span></div>
+        <div class="stat-sub">vs. 2 weeks manually</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">90<span style="font-size:1.1rem;color:var(--accent)">%</span></div>
+        <div class="stat-sub">Cost accuracy</div>
+      </div>
+    </div>
+
+    <div class="scroll-hint">
+      <div class="scroll-line"></div>
+      Scroll to explore
+    </div>
+  </section>
+
+  <div class="ticker">
+    <div class="ticker-track">
+      <span class="ticker-item">AI Plan Analysis</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Automated Cost Estimates</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Delhi NCR Material Rates</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Scenario Simulation</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">GST Compliant Reports</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">RERA Compliance</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Residential Towers</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Group Housing</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">AI Plan Analysis</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Automated Cost Estimates</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Delhi NCR Material Rates</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Scenario Simulation</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">GST Compliant Reports</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">RERA Compliance</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Residential Towers</span><span class="ticker-dot">&#9679;</span>
+      <span class="ticker-item">Group Housing</span><span class="ticker-dot">&#9679;</span>
+    </div>
+  </div>
+
+  <section class="problem" id="about">
+    <div class="problem-inner">
+      <div class="problem-left reveal-left">
+        <p class="section-label">The Problem</p>
+        <h2 class="section-h2">India's construction still runs on <em>Excel and gut feeling.</em></h2>
+        <p class="problem-body">A manual quantity surveyor takes two to four weeks to estimate a single residential tower. Cost overruns in Delhi NCR average 20 to 30 percent. Mid-size developers cannot afford the large QS firms.</p>
+        <p class="problem-body">Nirman.AI changes this. Upload your architectural drawings. Get a complete itemized estimate in 30 minutes.</p>
+      </div>
+      <div class="problem-right reveal-right">
+        <div class="stat-grid">
+          <div class="sg-cell"><div class="sg-num">₹650<span>B</span></div><div class="sg-label">Indian construction market</div></div>
+          <div class="sg-cell"><div class="sg-num">11M<span>+</span></div><div class="sg-label">Projects annually</div></div>
+          <div class="sg-cell"><div class="sg-num">30<span>%</span></div><div class="sg-label">Average cost overrun</div></div>
+          <div class="sg-cell"><div class="sg-num">4<span>wk</span></div><div class="sg-label">Manual estimate time</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="how" id="how">
+    <div class="how-inner">
+      <div class="how-header reveal-up">
+        <div>
+          <p class="section-label">How it works</p>
+          <h2 class="section-h2">Start to finish<br>in 30 minutes.</h2>
+        </div>
+        <p class="how-sub">Upload a drawing. Review extracted data. Receive a complete cost intelligence report.</p>
+      </div>
+      <div class="steps-grid">
+        <div class="step-card reveal-up d1">
+          <div class="step-num">Step 01</div>
+          <h3 class="step-title">Upload your drawings</h3>
+          <p class="step-body">Upload your residential tower PDF — floor plans and elevation views. Nirman.AI accepts CAD exports, scanned drawings, and WhatsApp photos of hand-drawn plans.</p>
+        </div>
+        <div class="step-card reveal-up d2">
+          <div class="step-num">Step 02</div>
+          <h3 class="step-title">AI reads and extracts</h3>
+          <p class="step-body">AI models extract floor areas, unit distribution, facade elements, and structural details. Review and edit any field before proceeding to the estimate.</p>
+        </div>
+        <div class="step-card reveal-up d3">
+          <div class="step-num">Step 03</div>
+          <h3 class="step-title">Receive your cost report</h3>
+          <p class="step-body">A complete GST-compliant estimate using live Delhi NCR material and labour rates. Run scenario simulations and share directly with your bank or investor.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="forwho" id="forwho">
+    <div class="forwho-inner">
+      <div class="forwho-header reveal-left">
+        <p class="section-label">Built for</p>
+        <h2 class="section-h2">Everyone who builds <em>residential India.</em></h2>
+      </div>
+      <ul class="who-list">
+        <li class="who-item reveal-up d1">
+          <span class="who-idx">01</span>
+          <span class="who-name">Developers</span>
+          <span class="who-desc">Sharpen underwriting when acquiring new land parcels. Make faster design decisions in the pre-construction phase of your towers.</span>
+          <span class="who-tag">Primary</span>
+        </li>
+        <li class="who-item reveal-up d2">
+          <span class="who-idx">02</span>
+          <span class="who-name">General Contractors</span>
+          <span class="who-desc">Generate accurate bids faster. Win more tenders with data-backed estimates benchmarked against DSR and CPWD rates.</span>
+          <span class="who-tag">Primary</span>
+        </li>
+        <li class="who-item reveal-up d3">
+          <span class="who-idx">03</span>
+          <span class="who-name">Banks and NBFCs</span>
+          <span class="who-desc">Independent AI-verified cost assessments for construction finance due diligence. Reduce project risk in your loan book.</span>
+          <span class="who-tag">Enterprise</span>
+        </li>
+        <li class="who-item reveal-up d4">
+          <span class="who-idx">04</span>
+          <span class="who-name">Real Estate Investors</span>
+          <span class="who-desc">Vet pro-forma cost assumptions independently. Benchmark against comparable projects for confident investment decisions.</span>
+          <span class="who-tag">Enterprise</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <div class="features-inner">
+      <div class="features-header reveal-up">
+        <p class="section-label">Core features</p>
+        <h2 class="section-h2">Everything you need.<br>Nothing you don't.</h2>
+      </div>
+      <div class="feat-grid">
+        <div class="feat-card reveal-up d1">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18"/></svg></div>
+          <h3 class="feat-title">Automated Plan Reading</h3>
+          <p class="feat-body">AI extracts floor areas, unit layouts, room dimensions, facade elements, and structural details from your architectural PDFs automatically.</p>
+        </div>
+        <div class="feat-card reveal-up d2">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div>
+          <h3 class="feat-title">Live Cost Estimation</h3>
+          <p class="feat-body">Estimates use real-time Delhi NCR material and labour rates. Every line item is transparent and benchmarked against DSR and CPWD standards.</p>
+          <span class="feat-badge">Delhi NCR</span>
+        </div>
+        <div class="feat-card reveal-up d3">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg></div>
+          <h3 class="feat-title">Scenario Simulation</h3>
+          <p class="feat-body">Switch RCC to steel frame. Change facade cladding. Adjust ceiling heights. Instantly see the cost impact of every design decision.</p>
+        </div>
+        <div class="feat-card reveal-up d1">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></div>
+          <h3 class="feat-title">GST-Compliant Reports</h3>
+          <p class="feat-body">A complete 16-division cost report formatted for Indian accounting. Sharable directly with banks, investors, and RERA authorities.</p>
+          <span class="feat-badge">India-first</span>
+        </div>
+        <div class="feat-card reveal-up d2">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+          <h3 class="feat-title">Price Forecasting</h3>
+          <p class="feat-body">Know how cement, steel, and labour costs will move when you break ground. Built on Indian commodity market data from MCX and CMA.</p>
+        </div>
+        <div class="feat-card reveal-up d3">
+          <div class="feat-icon"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.1 6.1l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></div>
+          <h3 class="feat-title">WhatsApp Native</h3>
+          <p class="feat-body">Send your drawing on WhatsApp. Get your cost estimate back in minutes. No app download required for your first estimate.</p>
+          <span class="feat-badge">India-first</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="india">
+    <div class="india-inner">
+      <div class="india-left reveal-left">
+        <p class="section-label">The India advantage</p>
+        <h2 class="section-h2">Built for India.<br><em>Not adapted for it.</em></h2>
+        <p class="india-desc">Every global construction AI tool is built for the US or European market then adapted for India. Nirman.AI is built ground-up for the Indian residential market with data, compliance, and workflows that match how Indian developers actually build.</p>
+      </div>
+      <div class="india-right reveal-right">
+        <ul class="india-list">
+          <li class="india-row"><div class="india-check"></div><p class="india-text"><strong>Delhi Schedule of Rates (DSR)</strong> — official government cost benchmarks built in. Every estimate is DSR-referenced.</p></li>
+          <li class="india-row"><div class="india-check"></div><p class="india-text"><strong>CPWD Rate Integration</strong> — banks and NBFCs ask for CPWD benchmarks. Nirman.AI reports include them by default.</p></li>
+          <li class="india-row"><div class="india-check"></div><p class="india-text"><strong>RERA Compliance Check</strong> — state-specific rules for Delhi, UP, and Haryana checked automatically.</p></li>
+          <li class="india-row"><div class="india-check"></div><p class="india-text"><strong>GST-Compliant Output</strong> — every report includes GST calculations formatted for Indian accounting.</p></li>
+          <li class="india-row"><div class="india-check"></div><p class="india-text"><strong>Reads hand-drawn plans</strong> — trained on Indian architectural drawings including hand-drawn and scanned plans.</p></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="waitlist" id="waitlist">
+    <div class="wl-left">
+      <p class="wl-label">Early Access</p>
+      <h2 class="wl-title">Be first to<br>build <em>smarter.</em></h2>
+      <p class="wl-body">Nirman.AI is launching in Delhi NCR first. Early access members receive preferential pricing, priority onboarding, and direct input into the product roadmap.</p>
+      <div class="wl-cities">
+        <span class="city-tag active">Delhi</span>
+        <span class="city-tag active">Noida</span>
+        <span class="city-tag active">Gurugram</span>
+        <span class="city-tag active">Faridabad</span>
+        <span class="city-tag active">Ghaziabad</span>
+        <span class="city-tag">Mumbai — soon</span>
+        <span class="city-tag">Bengaluru — soon</span>
+      </div>
+    </div>
+    <div class="wl-right">
+      <div class="wl-count">
+        <div class="wl-count-num" id="wlNum">247</div>
+        <div class="wl-count-label">Professionals already registered</div>
+      </div>
+      <div id="wlForm">
+        <div class="form-grid">
+          <div class="form-row">
+            <label class="form-label" for="fname">Full name</label>
+            <input class="form-input" type="text" id="fname" placeholder="Your name"/>
+          </div>
+          <div class="form-row">
+            <label class="form-label" for="femail">Email address</label>
+            <input class="form-input" type="email" id="femail" placeholder="you@company.com"/>
+          </div>
+          <div class="form-row">
+            <label class="form-label" for="fphone">Phone number</label>
+            <input class="form-input" type="tel" id="fphone" placeholder="+91 98765 43210"/>
+          </div>
+          <div class="form-row">
+            <label class="form-label" for="frole">Your role</label>
+            <select class="form-select" id="frole">
+              <option value="" disabled selected>Select role</option>
+              <option>Real Estate Developer</option>
+              <option>General Contractor</option>
+              <option>Bank or NBFC</option>
+              <option>Real Estate Investor</option>
+              <option>Architect or Consultant</option>
+              <option>Other</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:8px">
+          <label class="form-label" for="fcity">City</label>
+          <select class="form-select" id="fcity">
+            <option value="" disabled selected>Select your city</option>
+            <optgroup label="Launching Now — Delhi NCR">
+              <option>Delhi</option><option>Noida</option><option>Gurugram</option>
+              <option>Faridabad</option><option>Ghaziabad</option><option>Greater Noida</option>
+            </optgroup>
+            <optgroup label="Coming Soon">
+              <option>Mumbai</option><option>Navi Mumbai</option><option>Bengaluru</option>
+              <option>Pune</option><option>Hyderabad</option><option>Chennai</option>
+              <option>Ahmedabad</option><option>Other</option>
+            </optgroup>
+          </select>
+        </div>
+        <button class="submit-btn" onclick="submitWaitlist()"><span>Join the Waitlist</span></button>
+      </div>
+      <div class="success-state" id="wlSuccess">
+        <div class="success-icon">&#10003;</div>
+        <h3 class="success-title">You are on the list.</h3>
+        <p class="success-body">Nirman.AI is launching in Delhi NCR first. We will be in touch shortly with your early access details.</p>
+        <p style="margin-top:16px;font-family:var(--mono);font-size:.58rem;letter-spacing:.15em;color:var(--accent)">Nirman.AI</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="cta-band reveal-up">
+    <div class="cta-text">The future of construction<br>intelligence starts <em>here.</em></div>
+    <a href="#waitlist" class="btn-dark">Request Early Access</a>
+  </div>
+
+  <footer>
+    <div class="footer-logo">Nirman<span>.AI</span></div>
+    <div class="footer-meta">
+      Copyright &copy; 2026 Nirman.AI. All rights reserved.
+    </div>
+  </footer>
+</div>
+
+<div id="root" style="display: none;"></div>
+
+
+<script>
+const dot=document.getElementById('cDot'),ring=document.getElementById('cRing');
+const loginBtn=document.getElementById('loginBtn');
+const landingContainer=document.getElementById('landing-container');
+const rootContainer=document.getElementById('root');
+
+let mx=0,my=0,rx=0,ry=0;
+let isLanding = true;
+
+// Check if user is already logged in
+window.addEventListener('DOMContentLoaded', () => {
+   if(localStorage.getItem('nirman_token')) {
+      loginBtn.innerText = 'Dashboard';
+   }
+});
+
+// Switch from Landing to Dashboard
+loginBtn.addEventListener('click', (e) => {
+   e.preventDefault();
+   landingContainer.style.display = 'none';
+   rootContainer.style.display = 'block';
+   isLanding = false;
+   dot.style.display = 'none';
+   ring.style.display = 'none';
+   document.body.style.cursor = 'auto';
+});
+
+// Function to call from React to go back to Landing
+window.goToLanding = () => {
+   landingContainer.style.display = 'block';
+   rootContainer.style.display = 'none';
+   isLanding = true;
+   dot.style.display = 'block';
+   ring.style.display = 'block';
+   loginBtn.innerText = 'Login';
+};
+
+document.addEventListener('mousemove',e=>{
+  if(!isLanding) return;
+  mx=e.clientX;my=e.clientY;dot.style.left=mx+'px';dot.style.top=my+'px'
+});
+(function ar(){
+  if(isLanding) {
+    rx+=(mx-rx)*.13;ry+=(my-ry)*.13;ring.style.left=rx+'px';ring.style.top=ry+'px';
+  }
+  requestAnimationFrame(ar)
+})();
+
+document.querySelectorAll('.landing-container a, .landing-container button, .who-item, .sg-cell, .feat-card, .step-card').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{
+    if(!isLanding) return;
+    ring.style.width='52px';ring.style.height='52px';ring.style.opacity='1'
+  });
+  el.addEventListener('mouseleave',()=>{
+    if(!isLanding) return;
+    ring.style.width='28px';ring.style.height='28px';ring.style.opacity='.6'
+  });
+});
+
+const els=document.querySelectorAll('.reveal-left,.reveal-right,.reveal-up');
+const obs=new IntersectionObserver(entries=>{
+  entries.forEach((e,i)=>{if(e.isIntersecting){setTimeout(()=>e.target.classList.add('visible'),i*60);obs.unobserve(e.target)}});
+},{threshold:.1});
+els.forEach(el=>obs.observe(el));
+
+const API_BASE="https://nirman-backend-n9ms.onrender.com";
+async function loadCount(){try{const r=await fetch(`${API_BASE}/api/waitlist/count`);const d=await r.json();if(d.total!==undefined)document.getElementById('wlNum').textContent=d.total}catch(e){}}
+loadCount();
+
+async function submitWaitlist(){
+  const name=document.getElementById('fname').value.trim();
+  const email=document.getElementById('femail').value.trim();
+  const phone=document.getElementById('fphone').value.trim();
+  const role=document.getElementById('frole').value;
+  const city=document.getElementById('fcity').value;
+  if(!name||!email||!role){
+    document.querySelectorAll('.form-input,.form-select').forEach(i=>{if(!i.value.trim()){i.style.borderColor='rgba(126,184,201,.8)';setTimeout(()=>i.style.borderColor='',2000)}});
+    return;
+  }
+  const btn=document.querySelector('.submit-btn');
+  btn.disabled=true;btn.querySelector('span').textContent='Submitting...';
+  try{
+    const r=await fetch(`${API_BASE}/api/waitlist`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,phone,role,city})});
+    const d=await r.json();
+    if(d.success){if(d.total)document.getElementById('wlNum').textContent=d.total;showSuccess()}
+    else{btn.disabled=false;btn.querySelector('span').textContent='Join the Waitlist';showErr(d.message||'Something went wrong.')}
+  }catch(e){btn.disabled=false;btn.querySelector('span').textContent='Join the Waitlist';showErr('Could not connect. Please try again.')}
+}
+function showSuccess(){
+  document.getElementById('wlForm').style.display='none';
+  const s=document.getElementById('wlSuccess');s.style.display='block';s.style.opacity='0';s.style.transform='translateY(16px)';s.style.transition='opacity .6s,transform .6s';
+  requestAnimationFrame(()=>{s.style.opacity='1';s.style.transform='none'});
+}
+function showErr(msg){let el=document.getElementById('fErr');if(!el){el=document.createElement('p');el.id='fErr';el.style.cssText='font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;color:#f87171;margin-top:14px;';document.querySelector('.submit-btn').after(el)}el.textContent=msg}
+document.querySelectorAll('.form-input,.form-select').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')submitWaitlist()}));
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const {useState,useEffect,useRef,useCallback}=React;
+const API="https://nirman-backend-n9ms.onrender.com";
+
+// ── API HELPERS ──────────────────────────────────────────────────────────────
+const api={
+  token:()=>localStorage.getItem("nirman_token"),
+  headers:()=>({
+    "Content-Type":"application/json",
+    ...(localStorage.getItem("nirman_token")?{Authorization:`Bearer ${localStorage.getItem("nirman_token")}`}:{})
+  }),
+  async get(path){
+    const r=await fetch(`${API}${path}`,{headers:this.headers()});
+    return r.json();
+  },
+  async post(path,body){
+    const r=await fetch(`${API}${path}`,{method:"POST",headers:this.headers(),body:JSON.stringify(body)});
+    return r.json();
+  },
+  async put(path,body){
+    const r=await fetch(`${API}${path}`,{method:"PUT",headers:this.headers(),body:JSON.stringify(body)});
+    return r.json();
+  },
+  async del(path){
+    const r=await fetch(`${API}${path}`,{method:"DELETE",headers:this.headers()});
+    return r.json();
+  },
+  async upload(path,file){
+    const fd=new FormData();
+    fd.append("file",file);
+    const r=await fetch(`${API}${path}`,{method:"POST",headers:{Authorization:`Bearer ${this.token()}`},body:fd});
+    return r.json();
+  }
+};
+
+// ── FORMAT HELPERS ───────────────────────────────────────────────────────────
+const fmt={
+  inr:(n)=>{
+    if(!n||isNaN(n))return "—";
+    if(n>=10000000)return `₹${(n/10000000).toFixed(2)} Cr`;
+    if(n>=100000)return `₹${(n/100000).toFixed(2)} L`;
+    return `₹${Number(n).toLocaleString("en-IN")}`;
+  },
+  inrFull:(n)=>n?`₹${Number(n).toLocaleString("en-IN")}`:"—",
+  num:(n)=>n?Number(n).toLocaleString("en-IN"):"—",
+  sqft:(n)=>n?`${Number(n).toLocaleString("en-IN")} sqft`:"—",
+  date:(s)=>s?new Date(s).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—",
+};
+
+// ── NOTIFICATION ─────────────────────────────────────────────────────────────
+function Notif({msg,type,onClose}){
+  useEffect(()=>{const t=setTimeout(onClose,3500);return()=>clearTimeout(t)},[]);
+  return React.createElement("div",{className:`notif ${type}`},
+    React.createElement("div",{className:"notif-dot"}),
+    React.createElement("span",{className:"notif-text"},msg),
+    React.createElement("button",{onClick:onClose,style:{background:"none",border:"none",color:"var(--dim)",cursor:"pointer",fontSize:"1rem",lineHeight:1}},"\u00D7")
+  );
+}
+
+// ── AUTH SCREEN ──────────────────────────────────────────────────────────────
+function AuthScreen({onLogin}){
+  const [tab,setTab]=useState("login");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+  const [form,setForm]=useState({name:"",email:"",password:"",company:"",role:"Real Estate Developer",city:"Delhi"});
+
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  async function submit(e){
+    e.preventDefault();
+    setError("");setLoading(true);
+    try{
+      const path=tab==="login"?"/api/auth/login":"/api/auth/register";
+      const d=await api.post(path,form);
+      if(d.success){localStorage.setItem("nirman_token",d.token);onLogin(d.user)}
+      else setError(d.message||"Something went wrong");
+    }catch{setError("Cannot connect to server. Make sure app.py is running.")}
+    setLoading(false);
+  }
+
+  const inp=(k,ph,type="text")=>React.createElement("div",{className:"form-field"},
+    React.createElement("label",null,k.charAt(0).toUpperCase()+k.slice(1)),
+    React.createElement("input",{type,value:form[k],onChange:e=>set(k,e.target.value),placeholder:ph,required:["name","email","password"].includes(k)})
+  );
+
+  return React.createElement("div",{className:"auth-screen"},
+    React.createElement("div",{className:"auth-grid"}),
+    React.createElement("div",{className:"auth-glow"}),
+    React.createElement("div",{className:"auth-box"},
+      React.createElement("div",{className:"auth-logo"},"Nirman",React.createElement("span",null,".AI")),
+      React.createElement("div",{className:"auth-tagline"},"AI Construction Intelligence — Delhi NCR"),
+      React.createElement("div",{className:"auth-tabs"},
+        React.createElement("button",{className:`auth-tab ${tab==="login"?"active":""}`,onClick:()=>{setTab("login");setError("")}},"Sign In"),
+        React.createElement("button",{className:`auth-tab ${tab==="register"?"active":""}`,onClick:()=>{setTab("register");setError("")}},"Create Account")
+      ),
+      React.createElement("form",{onSubmit:submit},
+        tab==="register"&&React.createElement(React.Fragment,null,
+          React.createElement("div",{className:"form-grid-2"},inp("name","Your full name"),inp("company","Company or firm name")),
+          React.createElement("div",{className:"form-grid-2"},
+            React.createElement("div",{className:"form-field"},
+              React.createElement("label",null,"Role"),
+              React.createElement("select",{value:form.role,onChange:e=>set("role",e.target.value)},
+                ["Real Estate Developer","General Contractor","Bank or NBFC","Architect","Real Estate Investor","Other"].map(r=>React.createElement("option",{key:r,value:r},r))
+              )
+            ),
+            React.createElement("div",{className:"form-field"},
+              React.createElement("label",null,"City"),
+              React.createElement("select",{value:form.city,onChange:e=>set("city",e.target.value)},
+                ["Delhi","Noida","Gurugram","Faridabad","Ghaziabad","Greater Noida","Mumbai","Bengaluru","Other"].map(c=>React.createElement("option",{key:c,value:c},c))
+              )
+            )
+          )
+        ),
+        inp("email","you@company.com","email"),
+        inp("password","Minimum 6 characters","password"),
+        error&&React.createElement("div",{className:"auth-error"},error),
+        React.createElement("button",{className:"btn-accent",type:"submit",disabled:loading},loading?"Please wait...":(tab==="login"?"Sign In":"Create Account"))
+      ),
+      React.createElement("div",{className:"auth-switch"},
+        tab==="login"?"Don't have an account? ":"Already have an account? ",
+        React.createElement("button",{type:"button",onClick:()=>{setTab(tab==="login"?"register":"login");setError("")}},tab==="login"?"Create one":"Sign in")
+      ),
+      React.createElement("div",{className:"auth-switch", style:{marginTop:12}},
+        React.createElement("button",{type:"button",onClick:()=>window.goToLanding()}, "← Back to Website")
+      )
+    )
+  );
+}
+
+// ── SIDEBAR ──────────────────────────────────────────────────────────────────
+function Sidebar({user,page,setPage,onSignout}){
+  const initial=(user?.name||"N")[0].toUpperCase();
+  const nav=(icon,label,pg)=>React.createElement("button",{className:`nav-item ${page===pg?"active":""}`,onClick:()=>setPage(pg)},
+    React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("path",{d:icon})),label
+  );
+  return React.createElement("div",{className:"sidebar"},
+    React.createElement("div",{className:"sidebar-logo"},
+      React.createElement("div",{className:"sidebar-logo-text"},"Nirman",React.createElement("span",null,".AI")),
+      React.createElement("div",{className:"sidebar-logo-sub"},"Construction Intelligence")
+    ),
+    React.createElement("div",{className:"sidebar-nav"},
+      React.createElement("div",{className:"nav-section-label"},"Main"),
+      nav("M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z","Dashboard","dashboard"),
+      nav("M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z","Projects","projects"),
+      React.createElement("div",{className:"nav-section-label",style:{marginTop:24}},"Account"),
+      nav("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2","Profile","profile"),
+    ),
+    React.createElement("div",{className:"sidebar-footer"},
+      React.createElement("div",{className:"user-info"},
+        React.createElement("div",{className:"user-avatar"},initial),
+        React.createElement("div",null,
+          React.createElement("div",{className:"user-name"},user?.name||"User"),
+          React.createElement("div",{className:"user-role"},user?.role||"Member")
+        )
+      ),
+      React.createElement("button",{className:"btn-signout",onClick:onSignout},"Sign Out")
+    )
+  );
+}
+
+// ── DASHBOARD PAGE ───────────────────────────────────────────────────────────
+function Dashboard({user,projects,onNew,setPage}){
+  const analyzed=projects.filter(p=>p.status==="analyzed").length;
+  const uploaded=projects.filter(p=>p.status==="uploaded").length;
+  return React.createElement(React.Fragment,null,
+    React.createElement("div",{className:"page-header"},
+      React.createElement("div",{className:"page-title"},`Good day, ${(user?.name||"").split(" ")[0]}.`),
+      React.createElement("div",{className:"page-subtitle"},"Here is your Nirman.AI workspace overview.")
+    ),
+    React.createElement("div",{className:"page-body"},
+      React.createElement("div",{className:"stats-row"},
+        React.createElement("div",{className:"stat-card"},React.createElement("div",{className:"stat-card-num"},projects.length,React.createElement("span",null," total")),React.createElement("div",{className:"stat-card-label"},"Projects created")),
+        React.createElement("div",{className:"stat-card"},React.createElement("div",{className:"stat-card-num"},analyzed,React.createElement("span",null," done")),React.createElement("div",{className:"stat-card-label"},"Estimates generated")),
+        React.createElement("div",{className:"stat-card"},React.createElement("div",{className:"stat-card-num"},uploaded,React.createElement("span",null," pending")),React.createElement("div",{className:"stat-card-label"},"Awaiting analysis")),
+        React.createElement("div",{className:"stat-card"},React.createElement("div",{className:"stat-card-num"},"NCR",React.createElement("span",null," live")),React.createElement("div",{className:"stat-card-label"},"Active market"))
+      ),
+      React.createElement("div",{className:"projects-header"},
+        React.createElement("div",{className:"projects-title"},"Recent Projects"),
+        React.createElement("button",{className:"btn-new",onClick:onNew},
+          React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"12",y1:"5",x2:"12",y2:"19"}),React.createElement("line",{x1:"5",y1:"12",x2:"19",y2:"12"})),
+          "New Project"
+        )
+      ),
+      projects.length===0?React.createElement("div",{className:"empty-state"},
+        React.createElement("div",{className:"empty-icon"},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("path",{d:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"}),React.createElement("polyline",{points:"14 2 14 8 20 8"}))),
+        React.createElement("div",{className:"empty-title"},"No projects yet"),
+        React.createElement("div",{className:"empty-body"},"Create your first project to start generating AI cost estimates."),
+        React.createElement("button",{className:"btn-new",style:{margin:"0 auto"},onClick:onNew},
+          React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"12",y1:"5",x2:"12",y2:"19"}),React.createElement("line",{x1:"5",y1:"12",x2:"19",y2:"12"})),
+          "Create First Project"
+        )
+      ):projects.slice(0,5).map(p=>React.createElement(ProjectRow,{key:p.id,project:p,onClick:()=>setPage({name:"project",id:p.id})}))
+    )
+  );
+}
+
+// ── PROJECT ROW ──────────────────────────────────────────────────────────────
+function ProjectRow({project,onClick,onDelete}){
+  return React.createElement("div",{className:"project-card",onClick},
+    React.createElement("div",null,
+      React.createElement("div",{className:"project-name"},project.name),
+      React.createElement("div",{className:"project-meta"},
+        (project.address||"Delhi NCR")," · ",fmt.date(project.created_at)," · ",project.project_type?.replace("_"," ")
+      )
+    ),
+    React.createElement("div",{className:`status-badge status-${project.status}`},project.status),
+    onDelete&&React.createElement("button",{className:"btn-icon",onClick:e=>{e.stopPropagation();onDelete(project.id)}},
+      React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("polyline",{points:"3 6 5 6 21 6"}),React.createElement("path",{d:"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"}))
+    )
+  );
+}
+
+// ── PROJECTS PAGE ────────────────────────────────────────────────────────────
+function ProjectsPage({projects,onNew,onDelete,setPage}){
+  return React.createElement(React.Fragment,null,
+    React.createElement("div",{className:"page-header"},
+      React.createElement("div",{className:"page-title"},"Projects"),
+      React.createElement("div",{className:"page-subtitle"},"All your construction cost estimation projects.")
+    ),
+    React.createElement("div",{className:"page-body"},
+      React.createElement("div",{className:"projects-header"},
+        React.createElement("div",{className:"projects-title"},`${projects.length} project${projects.length!==1?"s":""}`),
+        React.createElement("button",{className:"btn-new",onClick:onNew},
+          React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"12",y1:"5",x2:"12",y2:"19"}),React.createElement("line",{x1:"5",y1:"12",x2:"19",y2:"12"})),
+          "New Project"
+        )
+      ),
+      projects.length===0?React.createElement("div",{className:"empty-state"},
+        React.createElement("div",{className:"empty-icon"},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("path",{d:"M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"}))),
+        React.createElement("div",{className:"empty-title"},"No projects"),
+        React.createElement("div",{className:"empty-body"},"Start by creating your first project."),
+        React.createElement("button",{className:"btn-new",style:{margin:"0 auto"},onClick:onNew},
+          React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"12",y1:"5",x2:"12",y2:"19"}),React.createElement("line",{x1:"5",y1:"12",x2:"19",y2:"12"})),
+          "Create Project"
+        )
+      ):projects.map(p=>React.createElement(ProjectRow,{key:p.id,project:p,onClick:()=>setPage({name:"project",id:p.id}),onDelete}))
+    )
+  );
+}
+
+// ── NEW PROJECT MODAL ────────────────────────────────────────────────────────
+function NewProjectModal({onClose,onCreate}){
+  const [form,setForm]=useState({name:"",address:"",project_type:"residential_tower"});
+  const [loading,setLoading]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+
+  async function submit(e){
+    e.preventDefault();
+    if(!form.name.trim())return;
+    setLoading(true);
+    const d=await api.post("/api/projects",form);
+    setLoading(false);
+    if(d.success)onCreate(d.project);
+  }
+
+  return React.createElement("div",{className:"modal-overlay",onClick:e=>{if(e.target===e.currentTarget)onClose()}},
+    React.createElement("div",{className:"modal"},
+      React.createElement("div",{className:"modal-header"},
+        React.createElement("div",{className:"modal-title"},"New Project"),
+        React.createElement("button",{className:"modal-close",onClick:onClose},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"18",y1:"6",x2:"6",y2:"18"}),React.createElement("line",{x1:"6",y1:"6",x2:"18",y2:"18"})))
+      ),
+      React.createElement("form",{onSubmit:submit},
+        React.createElement("div",{className:"modal-body"},
+          React.createElement("div",{className:"form-field"},
+            React.createElement("label",null,"Project Name"),
+            React.createElement("input",{value:form.name,onChange:e=>set("name",e.target.value),placeholder:"e.g. Shree Residency Tower A",required:true,autoFocus:true})
+          ),
+          React.createElement("div",{className:"form-field"},
+            React.createElement("label",null,"Project Address"),
+            React.createElement("input",{value:form.address,onChange:e=>set("address",e.target.value),placeholder:"e.g. Sector 62, Noida, UP"})
+          ),
+          React.createElement("div",{className:"form-field"},
+            React.createElement("label",null,"Project Type"),
+            React.createElement("select",{value:form.project_type,onChange:e=>set("project_type",e.target.value)},
+              React.createElement("option",{value:"residential_tower"},"Residential Tower"),
+              React.createElement("option",{value:"group_housing"},"Group Housing"),
+              React.createElement("option",{value:"villa_project"},"Villa Project (coming soon)")
+            )
+          )
+        ),
+        React.createElement("div",{className:"modal-footer"},
+          React.createElement("button",{type:"button",className:"btn-ghost-sm",onClick:onClose},"Cancel"),
+          React.createElement("button",{type:"submit",className:"btn-primary-sm",disabled:loading||!form.name.trim()},loading?"Creating...":"Create Project")
+        )
+      )
+    )
+  );
+}
+
+function DrawingReview({analysis}){
+  const review=analysis?.drawing_review||{};
+  const list=(title,items)=>React.createElement("div",{className:"info-card"},
+    React.createElement("div",{className:"info-card-title"},title),
+    items?.length?React.createElement("div",{className:"review-list"},
+      items.map((item,i)=>React.createElement("div",{className:"review-pill",key:i},item))
+    ):React.createElement("p",{style:{color:"var(--dim)",fontSize:".85rem"}},"No issues flagged.")
+  );
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"info-card"},
+      React.createElement("div",{className:"info-card-title"},"Drawing Review"),
+      React.createElement("p",{style:{color:"var(--dim)",fontSize:".92rem",lineHeight:1.7}},review.summary||analysis.notes||"AI review will appear here after analysis.")
+    ),
+    React.createElement("div",{className:"review-grid"},
+      list("Risks",review.risks||[]),
+      list("Missing Information",review.missing_information||[]),
+      list("Assumptions",review.assumptions||[]),
+      React.createElement("div",{className:"info-card"},
+        React.createElement("div",{className:"info-card-title"},"Extraction Confidence"),
+        React.createElement("span",{className:`confidence ${analysis.confidence||"medium"}`},analysis.confidence||"medium"),
+        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},analysis.ai_source==="demo_fallback"?"Demo fallback is active until the Anthropic API key is added.":"Review the extracted fields before using the estimate commercially.")
+      )
+    )
+  );
+}
+
+function ExtractionEditor({projectId,analysis,onUpdated,notify}){
+  const [form,setForm]=useState(()=>({
+    building_type:analysis.building_type||"Residential Tower",
+    total_floors:analysis.total_floors||15,
+    total_units:analysis.total_units||60,
+    total_built_up_area_sqft:analysis.total_built_up_area_sqft||75000,
+    total_carpet_area_sqft:analysis.total_carpet_area_sqft||58000,
+    plot_area_sqft:analysis.plot_area_sqft||12000,
+    structure_type:analysis.structure_type||"RCC Frame",
+    basement_levels:analysis.basement_levels||0,
+    parking_spaces:analysis.parking_spaces||0,
+    lift_count:analysis.lift_count||2,
+    notes:analysis.notes||""
+  }));
+  const [saving,setSaving]=useState(false);
+  useEffect(()=>setForm({
+    building_type:analysis.building_type||"Residential Tower",
+    total_floors:analysis.total_floors||15,
+    total_units:analysis.total_units||60,
+    total_built_up_area_sqft:analysis.total_built_up_area_sqft||75000,
+    total_carpet_area_sqft:analysis.total_carpet_area_sqft||58000,
+    plot_area_sqft:analysis.plot_area_sqft||12000,
+    structure_type:analysis.structure_type||"RCC Frame",
+    basement_levels:analysis.basement_levels||0,
+    parking_spaces:analysis.parking_spaces||0,
+    lift_count:analysis.lift_count||2,
+    notes:analysis.notes||""
+  }),[analysis]);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const input=(k,label,type="number")=>React.createElement("div",{className:"form-field"},
+    React.createElement("label",null,label),
+    React.createElement("input",{type,value:form[k],onChange:e=>set(k,e.target.value)})
+  );
+  async function save(){
+    setSaving(true);
+    const d=await api.put(`/api/projects/${projectId}/analysis`,form);
+    setSaving(false);
+    if(d.success){notify("Extraction updated and estimate recalculated.","success");onUpdated(d.analysis,d.estimate)}
+    else notify(d.message||"Could not save extraction.","error");
+  }
+  return React.createElement("div",{className:"info-card"},
+    React.createElement("div",{className:"info-card-title"},"Review and Edit Extracted Data"),
+    React.createElement("div",{className:"edit-grid"},
+      React.createElement("div",{className:"form-field"},React.createElement("label",null,"Building Type"),React.createElement("input",{value:form.building_type,onChange:e=>set("building_type",e.target.value)})),
+      input("total_floors","Floors"),
+      input("total_units","Units"),
+      input("total_built_up_area_sqft","Built-up Area"),
+      input("total_carpet_area_sqft","Carpet Area"),
+      input("plot_area_sqft","Plot Area"),
+      React.createElement("div",{className:"form-field"},React.createElement("label",null,"Structure"),React.createElement("input",{value:form.structure_type,onChange:e=>set("structure_type",e.target.value)})),
+      input("basement_levels","Basements"),
+      input("parking_spaces","Parking"),
+      input("lift_count","Lifts")
+    ),
+    React.createElement("div",{className:"form-field",style:{marginTop:16}},
+      React.createElement("label",null,"Notes"),
+      React.createElement("textarea",{value:form.notes,onChange:e=>set("notes",e.target.value)})
+    ),
+    React.createElement("div",{className:"edit-actions"},
+      React.createElement("button",{className:"btn-primary-sm",onClick:save,disabled:saving},saving?"Saving...":"Save and Recalculate")
+    )
+  );
+}
+
+function BuildingMassing({analysis,scenario}){
+  const ref=useRef(null);
+  const floors=scenario?.options?.total_floors||analysis?.total_floors||15;
+  const basement=scenario?.options?.basement_levels||analysis?.basement_levels||0;
+  const facade=scenario?.options?.facade||"paint";
+  useEffect(()=>{
+    if(!ref.current||!window.THREE)return;
+    const THREE=window.THREE;
+    const width=ref.current.clientWidth||520;
+    const height=ref.current.clientHeight||420;
+    const scene=new THREE.Scene();
+    scene.background=new THREE.Color(0x080808);
+    const camera=new THREE.PerspectiveCamera(45,width/height,0.1,1000);
+    camera.position.set(9,9,12);
+    camera.lookAt(0,2,0);
+    const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+    renderer.setSize(width,height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
+    ref.current.innerHTML="";
+    ref.current.appendChild(renderer.domElement);
+    scene.add(new THREE.AmbientLight(0xffffff,.65));
+    const light=new THREE.DirectionalLight(0x7eb8c9,1.4);
+    light.position.set(8,12,10);
+    scene.add(light);
+    const facadeColors={paint:0x7eb8c9,texture:0xa8d4e0,stone:0xb8b5a8,glass:0x6cc5e8};
+    const material=new THREE.MeshStandardMaterial({color:facadeColors[facade]||0x7eb8c9,roughness:.46,metalness:facade==="glass"?.35:.05,transparent:true,opacity:.92});
+    const podiumMat=new THREE.MeshStandardMaterial({color:0x2a2a2a,roughness:.7});
+    const floorCount=Math.min(Number(floors)||15,42);
+    for(let i=0;i<floorCount;i++){
+      const slab=new THREE.Mesh(new THREE.BoxGeometry(3.1,0.12,2.3),material);
+      slab.position.y=i*.18+0.5;
+      scene.add(slab);
+    }
+    const core=new THREE.Mesh(new THREE.BoxGeometry(.7,Math.max(floorCount*.18,1),.55),new THREE.MeshStandardMaterial({color:0xffffff,roughness:.55,transparent:true,opacity:.16}));
+    core.position.set(.9,(floorCount*.18)/2+.42,-.55);
+    scene.add(core);
+    const podium=new THREE.Mesh(new THREE.BoxGeometry(4.8,.35,3.6),podiumMat);
+    podium.position.y=.12;
+    scene.add(podium);
+    if(basement>0){
+      const base=new THREE.Mesh(new THREE.BoxGeometry(5.4,.18*basement,4.1),new THREE.MeshStandardMaterial({color:0x151515,roughness:.8}));
+      base.position.y=-.18*basement/2;
+      scene.add(base);
+    }
+    const grid=new THREE.GridHelper(8,8,0x7eb8c9,0x1d1d1d);
+    grid.position.y=-.12;
+    scene.add(grid);
+    let frame=0;
+    function animate(){
+      frame=requestAnimationFrame(animate);
+      scene.rotation.y+=0.003;
+      renderer.render(scene,camera);
+    }
+    animate();
+    return()=>{cancelAnimationFrame(frame);renderer.dispose()};
+  },[floors,basement,facade]);
+  return React.createElement("div",{className:"massing-card",ref},
+    !window.THREE&&React.createElement("div",{className:"massing-fallback"},
+      React.createElement("div",{className:"massing-building"},
+        Array.from({length:Math.min(floors,28)}).map((_,i)=>React.createElement("div",{className:"massing-floor",key:i}))
+      )
+    )
+  );
+}
+
+function ScenarioSimulator({projectId,analysis,estimate,notify}){
+  const [options,setOptions]=useState({
+    name:"Option A",
+    concrete_grade:"M25",
+    cement_type:"OPC 43",
+    steel_rate:82,
+    finish_level:"standard",
+    flooring:"vitrified",
+    facade:"paint",
+    total_floors:analysis.total_floors||15,
+    basement_levels:analysis.basement_levels||0,
+    lift_count:analysis.lift_count||2
+  });
+  const [result,setResult]=useState(null);
+  const [loading,setLoading]=useState(false);
+  const [saving,setSaving]=useState(false);
+  const [saved,setSaved]=useState([]);
+  const set=(k,v)=>setOptions(o=>({...o,[k]:v}));
+  useEffect(()=>{loadSaved()},[projectId]);
+  useEffect(()=>{
+    const t=setTimeout(preview,350);
+    return()=>clearTimeout(t);
+  },[JSON.stringify(options),projectId]);
+  async function loadSaved(){
+    const d=await api.get(`/api/projects/${projectId}/scenarios`);
+    if(d.success)setSaved(d.scenarios||[]);
+  }
+  async function preview(){
+    setLoading(true);
+    const d=await api.post(`/api/projects/${projectId}/scenario`,options);
+    setLoading(false);
+    if(d.success)setResult(d.scenario);
+  }
+  async function saveScenario(){
+    setSaving(true);
+    const d=await api.post(`/api/projects/${projectId}/scenarios`,{options});
+    setSaving(false);
+    if(d.success){notify("Scenario saved.","success");loadSaved()}
+    else notify(d.message||"Scenario could not be saved.","error");
+  }
+  function downloadComparison(){
+    if(!result)return;
+    const rows=[
+      ["Scenario",result.options.name],
+      ["Base cost",result.base_total],
+      ["Revised cost",result.revised_total],
+      ["Delta",result.delta],
+      ["Delta percent",result.delta_percent],
+      ["Base cost per sqft",result.base_cost_per_sqft],
+      ["Revised cost per sqft",result.revised_cost_per_sqft],
+      [],
+      ["Affected division","Base amount","Revised amount","Delta"],
+      ...(result.affected_divisions||[]).map(d=>[d.name,d.base_amount,d.revised_amount,d.delta])
+    ];
+    const csv=rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\\n");
+    const blob=new Blob([csv],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${result.options.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-scenario.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  const select=(k,label,values)=>React.createElement("div",{className:"form-field"},
+    React.createElement("label",null,label),
+    React.createElement("select",{value:options[k],onChange:e=>set(k,e.target.value)},values.map(v=>React.createElement("option",{key:v,value:v},v)))
+  );
+  const range=(k,label,min,max,step=1)=>React.createElement("div",{className:"form-field"},
+    React.createElement("label",null,`${label}: ${options[k]}`),
+    React.createElement("input",{type:"range",min,max,step,value:options[k],onChange:e=>set(k,Number(e.target.value))})
+  );
+  const delta=result?.delta||0;
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-header"},
+      React.createElement("div",{className:"projects-title"},"Scenario Simulator"),
+      React.createElement("div",{style:{display:"flex",gap:12}},
+        React.createElement("button",{className:"btn-outline",onClick:downloadComparison,disabled:!result},"Download CSV"),
+        React.createElement("button",{className:"btn-new",onClick:saveScenario,disabled:saving||!result},saving?"Saving...":"Save Scenario")
+      )
+    ),
+    React.createElement("div",{className:"scenario-shell"},
+      React.createElement("div",{className:"scenario-controls"},
+        React.createElement("div",{className:"form-field"},React.createElement("label",null,"Scenario Name"),React.createElement("input",{value:options.name,onChange:e=>set("name",e.target.value)})),
+        select("concrete_grade","RCC Concrete Grade",["M20","M25","M30","M35"]),
+        select("cement_type","Cement Type",["PPC","OPC 43","OPC 53"]),
+        range("steel_rate","TMT Steel Rate / kg",45,160),
+        select("finish_level","Finish Level",["economy","standard","premium","luxury"]),
+        select("flooring","Flooring",["ceramic","vitrified","marble","wooden"]),
+        select("facade","Facade",["paint","texture","stone","glass"]),
+        range("total_floors","Floors",1,60),
+        range("basement_levels","Basements",0,6),
+        range("lift_count","Lifts",0,16)
+      ),
+      React.createElement("div",{className:"scenario-main"},
+        React.createElement(BuildingMassing,{analysis,scenario:result||{options}}),
+        React.createElement("div",null,
+          React.createElement("div",{className:"scenario-summary"},
+            React.createElement("div",{className:"scenario-metric"},React.createElement("div",{className:"scenario-metric-label"},"Base Cost"),React.createElement("div",{className:"scenario-metric-value"},fmt.inr(result?.base_total||estimate.total_with_gst))),
+            React.createElement("div",{className:"scenario-metric"},React.createElement("div",{className:"scenario-metric-label"},"Revised Cost"),React.createElement("div",{className:"scenario-metric-value"},fmt.inr(result?.revised_total||estimate.total_with_gst))),
+            React.createElement("div",{className:"scenario-metric"},React.createElement("div",{className:"scenario-metric-label"},"Change"),React.createElement("div",{className:`scenario-metric-value ${delta>=0?"up":"down"}`},`${delta>=0?"+":"-"}${fmt.inr(Math.abs(delta))}`),React.createElement("div",{className:"cost-sum-sub",style:{color:"var(--dim)"}},result?`${result.delta_percent}%`:(loading?"Calculating...":"—"))),
+            React.createElement("div",{className:"scenario-metric"},React.createElement("div",{className:"scenario-metric-label"},"Cost / sqft"),React.createElement("div",{className:"scenario-metric-value"},`₹${fmt.num(result?.revised_cost_per_sqft||estimate.cost_per_sqft)}`))
+          ),
+          result&&React.createElement("div",{className:"affected-list"},
+            (result.affected_divisions||[]).slice(0,6).map(div=>React.createElement("div",{className:"affected-row",key:div.key},
+              React.createElement("span",null,div.name),
+              React.createElement("strong",{style:{color:div.delta>=0?"var(--red)":"var(--green)"}},`${div.delta>=0?"+":"-"}${fmt.inr(Math.abs(div.delta))}`)
+            ))
+          ),
+          result&&React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},result.summary),
+          React.createElement("div",{className:"saved-scenarios"},
+            React.createElement("div",{className:"info-card-title"},"Saved Scenarios"),
+            saved.length?saved.slice(0,4).map(s=>React.createElement("div",{className:"saved-row",key:s.id},
+              React.createElement("span",null,s.name),
+              React.createElement("strong",{style:{color:s.result.delta>=0?"var(--red)":"var(--green)"}},`${s.result.delta>=0?"+":"-"}${fmt.inr(Math.abs(s.result.delta))}`)
+            )):React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem"}},"No saved scenarios yet.")
+          )
+        )
+      )
+    )
+  );
+}
+
+// ── PROJECT DETAIL PAGE ──────────────────────────────────────────────────────
+function ProjectDetail({projectId,onBack,notify}){
+  const [project,setProject]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [analyzing,setAnalyzing]=useState(false);
+  const [uploading,setUploading]=useState(false);
+  const [openDiv,setOpenDiv]=useState(null);
+  const fileRef=useRef();
+
+  useEffect(()=>{load()},[projectId]);
+
+  async function load(){
+    setLoading(true);
+    const d=await api.get(`/api/projects/${projectId}`);
+    if(d.success)setProject(d.project);
+    setLoading(false);
+  }
+
+  async function handleUpload(file){
+    if(!file)return;
+    setUploading(true);
+    const d=await api.upload(`/api/projects/${projectId}/upload`,file);
+    setUploading(false);
+    if(d.success){notify("Drawing uploaded successfully.","success");await load();}
+    else notify(d.message||"Upload failed.","error");
+  }
+
+  async function analyze(){
+    setAnalyzing(true);
+    notify("AI is analyzing your drawing. This takes about 30 seconds...","success");
+    const d=await api.post(`/api/projects/${projectId}/analyze`,{});
+    setAnalyzing(false);
+    if(d.success){notify("Analysis complete. Cost estimate ready.","success");await load();}
+    else notify(d.message||"Analysis failed.","error");
+  }
+
+  function handleAnalysisUpdate(analysis,estimate){
+    setProject(p=>({...p,analysis,estimate,status:"analyzed"}));
+  }
+
+  if(loading)return React.createElement("div",{className:"loading-state"},React.createElement("div",{className:"spinner"}),React.createElement("p",null,"Loading project..."));
+  if(!project)return React.createElement("div",{className:"page-body"},React.createElement("p",{style:{color:"var(--dim)"}},"Project not found."));
+
+  const analysis=project.analysis;
+  const estimate=project.estimate;
+  const canAnalyze=project.status==="uploaded";
+  const hasEstimate=project.status==="analyzed"&&estimate;
+
+  return React.createElement("div",null,
+    React.createElement("div",{className:"detail-header"},
+      React.createElement("button",{className:"back-btn",onClick:onBack},
+        React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("polyline",{points:"15 18 9 12 15 6"})),
+        "Back to projects"
+      ),
+      React.createElement("div",{className:"detail-title-row"},
+        React.createElement("div",null,
+          React.createElement("div",{className:"detail-name"},project.name),
+          React.createElement("div",{className:"detail-address"},project.address||"Delhi NCR"," · ",project.project_type?.replace("_"," "))
+        ),
+        React.createElement("div",{className:"detail-actions"},
+          project.status!=="analyzed"&&React.createElement("button",{className:"btn-outline",onClick:()=>fileRef.current?.click(),disabled:uploading},uploading?"Uploading...":"Upload Drawing"),
+          canAnalyze&&React.createElement("button",{className:"btn-accent",style:{padding:"10px 24px"},onClick:analyze,disabled:analyzing},analyzing?"Analyzing...":"Generate Estimate")
+        )
+      )
+    ),
+
+    React.createElement("div",{className:"page-body"},
+      // Stage tracker
+      React.createElement("div",{className:"stage-track"},
+        React.createElement("div",{className:`stage ${["uploaded","analyzed"].includes(project.status)?"done":""}`},
+          React.createElement("div",{className:"stage-num"},"01"),
+          React.createElement("div",{className:"stage-label"},"Drawing Uploaded"),
+          React.createElement("div",{className:"stage-sub"},project.file_name||"No file yet")
+        ),
+        React.createElement("div",{className:`stage ${project.status==="analyzed"?"done":""}`},
+          React.createElement("div",{className:"stage-num"},"02"),
+          React.createElement("div",{className:"stage-label"},"AI Analysis"),
+          React.createElement("div",{className:"stage-sub"},project.status==="analyzed"?"Extraction complete":"Pending")
+        ),
+        React.createElement("div",{className:`stage ${project.status==="analyzed"?"done":""}`},
+          React.createElement("div",{className:"stage-num"},"03"),
+          React.createElement("div",{className:"stage-label"},"Cost Report"),
+          React.createElement("div",{className:"stage-sub"},project.status==="analyzed"?"Ready to view":"Pending")
+        )
+      ),
+
+      // Hidden file input
+      React.createElement("input",{ref:fileRef,type:"file",accept:".pdf,.png,.jpg,.jpeg",style:{display:"none"},onChange:e=>handleUpload(e.target.files[0])}),
+
+      // Upload zone if no file
+      project.status==="created"&&React.createElement("div",{className:"upload-zone",onClick:()=>fileRef.current?.click(),onDragOver:e=>{e.preventDefault();e.currentTarget.classList.add("drag")},onDragLeave:e=>e.currentTarget.classList.remove("drag"),onDrop:e=>{e.preventDefault();e.currentTarget.classList.remove("drag");handleUpload(e.dataTransfer.files[0])}},
+        React.createElement("div",{className:"upload-icon"},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}),React.createElement("polyline",{points:"17 8 12 3 7 8"}),React.createElement("line",{x1:"12",y1:"3",x2:"12",y2:"15"}))),
+        React.createElement("div",{className:"upload-title"},"Upload Architectural Drawing"),
+        React.createElement("div",{className:"upload-sub"},"Drag and drop your file here, or click to browse"),
+        React.createElement("div",{className:"upload-formats"},"PDF · PNG · JPG — Max 20MB")
+      ),
+
+      // Analyzing loader
+      analyzing&&React.createElement("div",{className:"loading-state"},
+        React.createElement("div",{className:"spinner"}),
+        React.createElement("p",null,"AI is reading your drawing and generating cost estimate...")
+      ),
+
+      // Analysis results
+      !analyzing&&analysis&&React.createElement(React.Fragment,null,
+        React.createElement(DrawingReview,{analysis}),
+        React.createElement(ExtractionEditor,{projectId,analysis,onUpdated:handleAnalysisUpdate,notify}),
+        React.createElement("div",{className:"analysis-grid"},
+          // Building stats
+          React.createElement("div",{className:"info-card"},
+            React.createElement("div",{className:"info-card-title"},"Building Statistics"),
+            [
+              ["Building Type",analysis.building_type],
+              ["Total Floors",analysis.total_floors],
+              ["Total Units",fmt.num(analysis.total_units)],
+              ["Total BUA",fmt.sqft(analysis.total_built_up_area_sqft)],
+              ["Total Carpet Area",fmt.sqft(analysis.total_carpet_area_sqft)],
+              ["Plot Area",fmt.sqft(analysis.plot_area_sqft)],
+              ["Structure Type",analysis.structure_type],
+              ["Basement Levels",analysis.basement_levels||0],
+              ["Lifts",analysis.lift_count],
+              ["Parking Spaces",fmt.num(analysis.parking_spaces)],
+            ].map(([k,v])=>React.createElement("div",{className:"info-row",key:k},
+              React.createElement("span",{className:"info-key"},k),
+              React.createElement("span",{className:"info-val"},v||"—")
+            )),
+            React.createElement("div",{style:{paddingTop:12}},
+              React.createElement("span",{className:`confidence ${analysis.confidence||"medium"}`},`AI confidence: ${analysis.confidence||"medium"}`)
+            )
+          ),
+          // Unit distribution
+          React.createElement("div",{className:"info-card"},
+            React.createElement("div",{className:"info-card-title"},"Unit Distribution"),
+            analysis.unit_types?.length?React.createElement("div",{className:"unit-bars"},
+              analysis.unit_types.map(u=>{
+                const total=analysis.total_units||1;
+                const pct=Math.round((u.count/total)*100);
+                return React.createElement("div",{className:"unit-bar-row",key:u.type},
+                  React.createElement("div",{className:"unit-bar-header"},
+                    React.createElement("span",{className:"unit-bar-label"},`${u.type} — ${fmt.sqft(u.carpet_area_sqft)} carpet`),
+                    React.createElement("span",{className:"unit-bar-count"},`${u.count} units (${pct}%)`)
+                  ),
+                  React.createElement("div",{className:"unit-bar-track"},
+                    React.createElement("div",{className:"unit-bar-fill",style:{width:`${pct}%`}})
+                  )
+                );
+              })
+            ):React.createElement("p",{style:{color:"var(--dim)",fontSize:".85rem"}},"Unit data not extracted.")
+          )
+        )
+      ),
+
+      // Cost Estimate
+      !analyzing&&hasEstimate&&React.createElement(React.Fragment,null,
+        React.createElement(ScenarioSimulator,{projectId,analysis,estimate,notify}),
+        // Summary band
+        React.createElement("div",{className:"cost-summary"},
+          React.createElement("div",{className:"cost-summary-grid"},
+            React.createElement("div",{className:"cost-sum-item"},
+              React.createElement("div",{className:"cost-sum-label"},"Total Construction Cost"),
+              React.createElement("div",{className:"cost-sum-value"},fmt.inr(estimate.total_with_gst)),
+              React.createElement("div",{className:"cost-sum-sub"},"Including 12% GST")
+            ),
+            React.createElement("div",{className:"cost-sum-item"},
+              React.createElement("div",{className:"cost-sum-label"},"Cost per Sqft"),
+              React.createElement("div",{className:"cost-sum-value"},`₹${fmt.num(estimate.cost_per_sqft)}`),
+              React.createElement("div",{className:"cost-sum-sub"},"Built-up area basis")
+            ),
+            React.createElement("div",{className:"cost-sum-item"},
+              React.createElement("div",{className:"cost-sum-label"},"Built-up Area"),
+              React.createElement("div",{className:"cost-sum-value"},fmt.sqft(estimate.built_up_area)),
+              React.createElement("div",{className:"cost-sum-sub"},estimate.rates_source)
+            )
+          )
+        ),
+
+        // Division breakdown
+        React.createElement("div",{className:"division-list"},
+          Object.entries(estimate.divisions||{}).map(([key,div])=>{
+            const items=Array.isArray(div.items)?div.items:[{desc:div.name,qty:1,unit:"lot",rate:div.amount||0,amount:div.amount||0}];
+            const divTotal=items.reduce((s,i)=>s+(i.amount||0),0);
+            const isOpen=openDiv===key;
+            return React.createElement("div",{className:"division-item",key},
+              React.createElement("div",{className:"division-header",onClick:()=>setOpenDiv(isOpen?null:key)},
+                React.createElement("div",{className:"division-left"},
+                  React.createElement("span",{className:"division-num"},key.split("_")[0]),
+                  React.createElement("span",{className:"division-name"},div.name)
+                ),
+                React.createElement("div",{className:"division-right"},
+                  React.createElement("span",{className:"division-amount"},fmt.inr(divTotal)),
+                  React.createElement("svg",{className:`division-chevron ${isOpen?"open":""}`,viewBox:"0 0 24 24"},React.createElement("polyline",{points:"6 9 12 15 18 9"}))
+                )
+              ),
+              React.createElement("div",{className:`division-body ${isOpen?"open":""}`},
+                React.createElement("table",{className:"line-items-table"},
+                  React.createElement("thead",null,React.createElement("tr",null,
+                    React.createElement("th",null,"Description"),
+                    React.createElement("th",null,"Qty"),
+                    React.createElement("th",null,"Unit"),
+                    React.createElement("th",null,"Rate (₹)"),
+                    React.createElement("th",null,"Amount (₹)")
+                  )),
+                  React.createElement("tbody",null,
+                    items.map((item,i)=>React.createElement("tr",{key:i},
+                      React.createElement("td",null,item.desc),
+                      React.createElement("td",null,fmt.num(item.qty)),
+                      React.createElement("td",null,item.unit),
+                      React.createElement("td",null,fmt.num(item.rate)),
+                      React.createElement("td",null,fmt.inrFull(item.amount))
+                    ))
+                  )
+                )
+              )
+            );
+          })
+        ),
+
+        // GST Summary
+        React.createElement("div",{className:"gst-summary"},
+          React.createElement("div",{className:"gst-row"},
+            React.createElement("span",{className:"gst-label"},"Subtotal (before GST)"),
+            React.createElement("span",{className:"gst-val"},fmt.inr(estimate.subtotal))
+          ),
+          React.createElement("div",{className:"gst-row"},
+            React.createElement("span",{className:"gst-label"},"GST @ 12%"),
+            React.createElement("span",{className:"gst-val"},fmt.inr(estimate.gst_12pct))
+          ),
+          React.createElement("div",{className:"gst-row total"},
+            React.createElement("span",{className:"gst-label"},"Total Project Cost"),
+            React.createElement("span",{className:"gst-val"},fmt.inr(estimate.total_with_gst))
+          )
+        ),
+
+        // Disclaimer
+        React.createElement("div",{className:"disclaimer"},estimate.disclaimer)
+      )
+    )
+  );
+}
+
+// ── PROFILE PAGE ─────────────────────────────────────────────────────────────
+function ProfilePage({user}){
+  return React.createElement(React.Fragment,null,
+    React.createElement("div",{className:"page-header"},
+      React.createElement("div",{className:"page-title"},"Profile"),
+      React.createElement("div",{className:"page-subtitle"},"Your account information.")
+    ),
+    React.createElement("div",{className:"page-body"},
+      React.createElement("div",{className:"info-card",style:{maxWidth:520}},
+        React.createElement("div",{className:"info-card-title"},"Account Details"),
+        [["Name",user?.name],["Email",user?.email],["Company",user?.company||"—"],["Role",user?.role||"—"],["City",user?.city||"—"]].map(([k,v])=>
+          React.createElement("div",{className:"info-row",key:k},
+            React.createElement("span",{className:"info-key"},k),
+            React.createElement("span",{className:"info-val"},v||"—")
+          )
+        )
+      )
+    )
+  );
+}
+
+// ── APP ROOT ─────────────────────────────────────────────────────────────────
+function App(){
+  const [user,setUser]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const [page,setPage]=useState("dashboard");
+  const [projects,setProjects]=useState([]);
+  const [showNew,setShowNew]=useState(false);
+  const [notif,setNotif]=useState(null);
+
+  const notify=(msg,type="success")=>{setNotif({msg,type});setTimeout(()=>setNotif(null),4000)};
+
+  useEffect(()=>{
+    const t=localStorage.getItem("nirman_token");
+    if(t){api.get("/api/auth/me").then(d=>{if(d.success){setUser(d.user);loadProjects()}}).finally(()=>setLoading(false))}
+    else setLoading(false);
+  },[]);
+
+  async function loadProjects(){
+    const d=await api.get("/api/projects");
+    if(d.success)setProjects(d.projects);
+  }
+
+  function handleLogin(u){setUser(u);loadProjects()}
+
+  function handleSignout(){
+    localStorage.removeItem("nirman_token");
+    setUser(null);
+    setProjects([]);
+    setPage("dashboard");
+    if(window.goToLanding) window.goToLanding();
+  }
+
+  async function handleDelete(id){
+    const d=await api.del(`/api/projects/${id}`);
+    if(d.success){notify("Project deleted.","success");setProjects(ps=>ps.filter(p=>p.id!==id));if(typeof page==="object"&&page.id===id)setPage("projects")}
+    else notify(d.message||"Delete failed.","error");
+  }
+
+  function handleCreate(project){
+    setProjects(ps=>[project,...ps]);
+    setShowNew(false);
+    setPage({name:"project",id:project.id});
+    notify("Project created.","success");
+  }
+
+  if(loading)return React.createElement("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh"}},React.createElement("div",{className:"spinner"}));
+  if(!user)return React.createElement(AuthScreen,{onLogin:handleLogin});
+
+  const curPage=typeof page==="object"?page.name:page;
+
+  return React.createElement(React.Fragment,null,
+    React.createElement("div",{className:"app-shell"},
+      React.createElement(Sidebar,{user,page:curPage,setPage,onSignout:handleSignout}),
+      React.createElement("div",{className:"main"},
+        curPage==="dashboard"&&React.createElement(Dashboard,{user,projects,onNew:()=>setShowNew(true),setPage}),
+        curPage==="projects"&&React.createElement(ProjectsPage,{projects,onNew:()=>setShowNew(true),onDelete:handleDelete,setPage}),
+        curPage==="project"&&React.createElement(ProjectDetail,{projectId:page.id,onBack:()=>setPage("projects"),notify,onRefresh:loadProjects}),
+        curPage==="profile"&&React.createElement(ProfilePage,{user})
+      )
+    ),
+    showNew&&React.createElement(NewProjectModal,{onClose:()=>setShowNew(false),onCreate:handleCreate}),
+    notif&&React.createElement(Notif,{...notif,onClose:()=>setNotif(null)})
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
