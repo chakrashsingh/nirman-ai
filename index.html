@@ -21,12 +21,8 @@
 html{scroll-behavior:smooth}
 body{height:100%;background:var(--bg);color:var(--white);font-family:var(--body);font-weight:300;overflow-x:hidden}
 
-/* ── LANDING PAGE SPECIFIC CURSOR ── */
-.landing-container { cursor: none; }
-.landing-container a, .landing-container button, .landing-container input, .landing-container select { cursor: none; }
-
-.c-dot{position:fixed;width:6px;height:6px;background:var(--accent);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%)}
-.c-ring{position:fixed;width:28px;height:28px;border:1px solid rgba(126,184,201,.4);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:width .2s,height .2s,opacity .2s;opacity:.6}
+/* Use the normal desktop cursor on the landing page. */
+.c-dot,.c-ring{display:none!important}
 
 nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:24px 60px;background:rgba(8,8,8,.9);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
 .nav-logo{font-family:var(--syne);font-size:1.3rem;font-weight:700;color:var(--white);text-decoration:none;letter-spacing:.02em}
@@ -459,6 +455,10 @@ a{text-decoration:none;color:inherit}
 .affected-list{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius)}
 .affected-row{display:flex;justify-content:space-between;gap:18px;padding:14px 18px;border-bottom:1px solid var(--border);font-size:.82rem}
 .affected-row:last-child{border-bottom:none}
+.impact-row{display:grid;grid-template-columns:90px 1fr auto;gap:14px;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border);font-size:.78rem}
+.impact-row:last-child{border-bottom:none}
+.impact-code{font-family:var(--mono);font-size:.52rem;letter-spacing:.1em;color:var(--dimmer)}
+.impact-desc{color:var(--dim);line-height:1.4}
 .saved-scenarios{margin-top:24px}
 .saved-row{display:flex;justify-content:space-between;gap:18px;padding:12px 0;border-bottom:1px solid var(--border);font-size:.82rem}
 .saved-row:last-child{border-bottom:none}
@@ -469,6 +469,30 @@ a{text-decoration:none;color:inherit}
 .rate-table{width:100%;border-collapse:collapse}
 .rate-table th,.rate-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:.78rem;text-align:left}
 .rate-table th{font-family:var(--mono);font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
+.parcel-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:24px}
+.map-preview{min-height:280px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;border-radius:var(--radius)}
+.sheet-table-wrap{overflow:auto;border:1px solid var(--border);background:var(--surface)}
+.drawing-stage{display:grid;grid-template-columns:360px 1fr;gap:24px}
+.sheet-list{display:grid;gap:10px}
+.sheet-chip{border:1px solid var(--border);background:var(--surface);padding:12px;cursor:pointer;border-radius:var(--radius)}
+.sheet-chip.active{border-color:var(--accent);background:var(--accent-bg)}
+.drawing-canvas{position:relative;min-height:560px;border:1px solid var(--border);background:#070707;overflow:hidden;border-radius:var(--radius);touch-action:none}
+.drawing-preview{position:absolute;inset:0;width:100%;height:100%;border:0;background:#050505;pointer-events:none}
+.drawing-preview.image{object-fit:contain;padding:18px}
+.drawing-preview-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-size:.86rem;padding:28px}
+.drawing-grid-bg{position:absolute;inset:0;background-image:linear-gradient(rgba(126,184,201,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(126,184,201,.08) 1px,transparent 1px);background-size:32px 32px;pointer-events:none}
+.region-box{position:absolute;border:2px solid var(--accent);background:rgba(126,184,201,.14);padding:6px 22px 6px 6px;font-family:var(--mono);font-size:.52rem;color:var(--white);overflow:hidden;cursor:move;user-select:none;backdrop-filter:blur(2px)}
+.region-box.opening{border-color:#fbbf24;background:rgba(251,191,36,.12)}
+.region-box.core{border-color:#4ade80;background:rgba(74,222,128,.12)}
+.region-box.facade_zone{border-color:#fb7185;background:rgba(251,113,133,.12)}
+.region-box.wall,.region-box.wall_zone{border-color:#a78bfa;background:rgba(167,139,250,.12)}
+.region-resize{position:absolute;right:3px;bottom:3px;width:14px;height:14px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;cursor:nwse-resize;opacity:.9}
+.region-editor{display:grid;grid-template-columns:1.2fr .9fr .5fr .8fr .8fr;gap:10px;margin-top:14px}
+.takeoff-toolbar{display:flex;justify-content:flex-end;gap:12px;margin-top:16px;flex-wrap:wrap}
+.takeoff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.takeoff-card{background:var(--surface);padding:20px}
+.takeoff-val{font-family:var(--syne);font-size:1.35rem;font-weight:800;color:var(--accent)}
+.takeoff-label{font-family:var(--mono);font-size:.54rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);margin-top:8px}
 .print-report{display:none}
 @media print{
   nav,.sidebar,.detail-actions,.stage-track,.upload-zone,.scenario-shell,.boq-toolbar,.report-actions,.back-btn,.notif,.cta-band,footer,#landing-container{display:none!important}
@@ -507,6 +531,9 @@ a{text-decoration:none;color:inherit}
   .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
   .edit-grid{grid-template-columns:1fr 1fr}
   .rate-grid{grid-template-columns:1fr}
+  .parcel-grid,.drawing-stage{grid-template-columns:1fr}
+  .takeoff-grid{grid-template-columns:1fr 1fr}
+  .region-editor{grid-template-columns:1fr 1fr}
   .cost-summary-grid{grid-template-columns:1fr}
   .page-body,.page-header,.detail-header{padding-left:24px;padding-right:24px}
 }
@@ -888,8 +915,6 @@ loginBtn.addEventListener('click', (e) => {
    landingContainer.style.display = 'none';
    rootContainer.style.display = 'block';
    isLanding = false;
-   dot.style.display = 'none';
-   ring.style.display = 'none';
    document.body.style.cursor = 'auto';
 });
 
@@ -898,17 +923,15 @@ window.goToLanding = () => {
    landingContainer.style.display = 'block';
    rootContainer.style.display = 'none';
    isLanding = true;
-   dot.style.display = 'block';
-   ring.style.display = 'block';
    loginBtn.innerText = 'Login';
 };
 
 document.addEventListener('mousemove',e=>{
-  if(!isLanding) return;
+  if(!isLanding||!dot) return;
   mx=e.clientX;my=e.clientY;dot.style.left=mx+'px';dot.style.top=my+'px'
 });
 (function ar(){
-  if(isLanding) {
+  if(isLanding&&ring) {
     rx+=(mx-rx)*.13;ry+=(my-ry)*.13;ring.style.left=rx+'px';ring.style.top=ry+'px';
   }
   requestAnimationFrame(ar)
@@ -916,11 +939,11 @@ document.addEventListener('mousemove',e=>{
 
 document.querySelectorAll('.landing-container a, .landing-container button, .who-item, .sg-cell, .feat-card, .step-card').forEach(el=>{
   el.addEventListener('mouseenter',()=>{
-    if(!isLanding) return;
+    if(!isLanding||!ring) return;
     ring.style.width='52px';ring.style.height='52px';ring.style.opacity='1'
   });
   el.addEventListener('mouseleave',()=>{
-    if(!isLanding) return;
+    if(!isLanding||!ring) return;
     ring.style.width='28px';ring.style.height='28px';ring.style.opacity='.6'
   });
 });
@@ -998,7 +1021,8 @@ const api={
     fd.append("file",file);
     const r=await fetch(`${API}${path}`,{method:"POST",headers:{Authorization:`Bearer ${this.token()}`},body:fd});
     return r.json();
-  }
+  },
+  fileUrl:path=>`${API}${path}?token=${encodeURIComponent(localStorage.getItem("nirman_token")||"")}`
 };
 
 // ── FORMAT HELPERS ───────────────────────────────────────────────────────────
@@ -1345,6 +1369,221 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify}){
   );
 }
 
+function ParcelEditor({project,onUpdated,notify}){
+  const parcel=project.parcel_data||{};
+  const [form,setForm]=useState(()=>({
+    address:parcel.address||project.address||"",
+    city:parcel.city||"",
+    state:parcel.state||"Delhi NCR",
+    plot_number:parcel.plot_number||"",
+    khasra_number:parcel.khasra_number||"",
+    rera_number:parcel.rera_number||"",
+    site_area_sqft:parcel.site_area_sqft||"",
+    permissible_far:parcel.permissible_far||"",
+    ground_coverage_pct:parcel.ground_coverage_pct||"",
+    land_use:parcel.land_use||"Residential",
+    gis_reference:parcel.gis_reference||"",
+    notes:parcel.notes||""
+  }));
+  const [saving,setSaving]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const input=(k,label,type="text")=>React.createElement("div",{className:"form-field"},
+    React.createElement("label",null,label),
+    React.createElement("input",{type,value:form[k],onChange:e=>set(k,e.target.value)})
+  );
+  async function save(){
+    setSaving(true);
+    const d=await api.put(`/api/projects/${project.id}/parcel`,form);
+    setSaving(false);
+    if(d.success){notify("Parcel details saved.","success");onUpdated(d.parcel_data)}
+    else notify(d.message||"Could not save parcel details.","error");
+  }
+  const mapUrl=parcel.map_url||`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([form.address,form.city,form.state].filter(Boolean).join(" "))}`;
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-title"},"Parcel and Land Selection"),
+    React.createElement("div",{className:"parcel-grid"},
+      React.createElement("div",{className:"info-card"},
+        React.createElement("div",{className:"edit-grid"},
+          input("address","Address"),
+          input("city","City"),
+          input("state","State / Region"),
+          input("plot_number","Plot Number"),
+          input("khasra_number","Khasra Number"),
+          input("rera_number","RERA Number"),
+          input("site_area_sqft","Site Area sqft","number"),
+          input("permissible_far","FAR / FSI","number"),
+          input("ground_coverage_pct","Ground Coverage %","number"),
+          input("land_use","Land Use"),
+          input("gis_reference","GIS / Authority Ref")
+        ),
+        React.createElement("div",{className:"form-field",style:{marginTop:16}},
+          React.createElement("label",null,"Land Notes"),
+          React.createElement("textarea",{value:form.notes,onChange:e=>set("notes",e.target.value)})
+        ),
+        React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-primary-sm",onClick:save,disabled:saving},saving?"Saving...":"Save Parcel"))
+      ),
+      React.createElement("div",{className:"map-preview"},
+        React.createElement("div",null,
+          React.createElement("div",{className:"info-card-title"},"Map Reference"),
+          React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6,marginBottom:18}},"MVP uses address, plot, khasra and RERA fields with a map search link. Verified municipal parcel/GIS lookup can be connected city by city later."),
+          React.createElement("a",{className:"btn-new",href:mapUrl,target:"_blank",rel:"noreferrer",style:{display:"inline-flex"}},"Open Map")
+        )
+      )
+    )
+  );
+}
+
+function DrawingIntelligence({projectId,project,onUpdated,notify}){
+  const [sheets,setSheets]=useState(project.drawing_sheets||[]);
+  const [regions,setRegions]=useState(project.drawing_regions||[]);
+  const [takeoffs,setTakeoffs]=useState(project.takeoffs||null);
+  const [active,setActive]=useState(0);
+  const [loading,setLoading]=useState(false);
+  const canvasRef=useRef(null);
+  const dragRef=useRef(null);
+  useEffect(()=>{setSheets(project.drawing_sheets||[]);setRegions(project.drawing_regions||[]);setTakeoffs(project.takeoffs||null)},[project]);
+  async function generate(){
+    setLoading(true);
+    const d=await api.post(`/api/projects/${projectId}/drawing-intelligence`,{});
+    setLoading(false);
+    if(d.success){setSheets(d.drawing_sheets);setRegions(d.drawing_regions);setTakeoffs(d.takeoffs);onUpdated({drawing_sheets:d.drawing_sheets,drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});notify("Drawing intelligence generated.","success")}
+    else notify(d.message||"Could not generate drawing intelligence.","error");
+  }
+  async function saveSheets(next=sheets){
+    const d=await api.put(`/api/projects/${projectId}/drawing-sheets`,{drawing_sheets:next});
+    if(d.success){setSheets(d.drawing_sheets);onUpdated({drawing_sheets:d.drawing_sheets});notify("Sheet data saved.","success")}
+  }
+  async function saveRegions(next=regions){
+    const d=await api.put(`/api/projects/${projectId}/drawing-regions`,{drawing_regions:next});
+    if(d.success){setRegions(d.drawing_regions);setTakeoffs(d.takeoffs);onUpdated({drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});notify("Regions and takeoffs updated.","success")}
+  }
+  async function exportTakeoffs(){
+    const r=await fetch(`${API}/api/projects/${projectId}/takeoffs.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
+    if(!r.ok){notify("Generate takeoffs before exporting.","error");return}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-takeoffs.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  function updateSheet(i,k,v){setSheets(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:v}:r))}
+  function updateRegion(i,k,v){setRegions(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:["x","y","w","h","sheet_page","quantity_sqft"].includes(k)?Number(v):v}:r))}
+  function patchRegion(i,patch){setRegions(rows=>rows.map((r,idx)=>idx===i?{...r,...patch}:r))}
+  function addRegion(){setRegions(rows=>[...rows,{id:`local-${Date.now()}`,sheet_page:(sheets[active]?.page||1),region_type:"room_zone",label:"New region",x:12,y:12,w:24,h:18,quantity_sqft:0,quantity_hint:"",confidence:"manual"}])}
+  function clamp(n,min,max){return Math.min(Math.max(n,min),max)}
+  function startRegionPointer(e,index,mode){
+    e.preventDefault();
+    e.stopPropagation();
+    const rect=canvasRef.current?.getBoundingClientRect();
+    if(!rect)return;
+    const r=regions[index];
+    dragRef.current={index,mode,rect,startX:e.clientX,startY:e.clientY,x:Number(r.x)||0,y:Number(r.y)||0,w:Number(r.w)||20,h:Number(r.h)||20};
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  function moveRegionPointer(e){
+    const drag=dragRef.current;
+    if(!drag)return;
+    const dx=((e.clientX-drag.startX)/drag.rect.width)*100;
+    const dy=((e.clientY-drag.startY)/drag.rect.height)*100;
+    if(drag.mode==="resize"){
+      patchRegion(drag.index,{w:clamp(drag.w+dx,4,100-drag.x),h:clamp(drag.h+dy,4,100-drag.y)});
+    }else{
+      patchRegion(drag.index,{x:clamp(drag.x+dx,0,100-drag.w),y:clamp(drag.y+dy,0,100-drag.h)});
+    }
+  }
+  function endRegionPointer(){dragRef.current=null}
+  const activePage=sheets[active]?.page||1;
+  const visibleRegions=regions.map((r,index)=>({r,index})).filter(({r})=>Number(r.sheet_page)===Number(activePage));
+  const fileUrl=project.file_name?api.fileUrl(`/api/projects/${projectId}/file`):"";
+  const isImage=(project.file_mime||"").startsWith("image/");
+  const isPdf=(project.file_mime||"").includes("pdf");
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-header"},
+      React.createElement("div",null,
+        React.createElement("div",{className:"projects-title"},"Page-Level Drawing Intelligence"),
+        React.createElement("div",{className:"page-subtitle"},"Review sheet type, floor name, scale, direction, annotations and detected regions.")
+      ),
+      React.createElement("button",{className:"btn-new",onClick:generate,disabled:loading},loading?"Reading...":"Generate Sheets")
+    ),
+    React.createElement("div",{className:"sheet-table-wrap"},
+      React.createElement("table",{className:"line-items-table"},
+        React.createElement("thead",null,React.createElement("tr",null,["Page","Type","Title","Floor","Scale","North","Annotations"].map(h=>React.createElement("th",{key:h},h)))),
+        React.createElement("tbody",null,sheets.map((s,i)=>React.createElement("tr",{key:s.id||i},
+          React.createElement("td",null,s.page),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.sheet_type,onChange:e=>updateSheet(i,"sheet_type",e.target.value)})),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.sheet_title,onChange:e=>updateSheet(i,"sheet_title",e.target.value)})),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.floor_name,onChange:e=>updateSheet(i,"floor_name",e.target.value)})),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.scale,onChange:e=>updateSheet(i,"scale",e.target.value)})),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.north_direction,onChange:e=>updateSheet(i,"north_direction",e.target.value)})),
+          React.createElement("td",null,React.createElement("input",{className:"boq-input",value:s.annotations,onChange:e=>updateSheet(i,"annotations",e.target.value)}))
+        )))
+      )
+    ),
+    sheets.length>0&&React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-primary-sm",onClick:()=>saveSheets()},"Save Sheets")),
+    React.createElement("div",{className:"drawing-stage"},
+      React.createElement("div",{className:"info-card"},
+        React.createElement("div",{className:"info-card-title"},"Sheets"),
+        React.createElement("div",{className:"sheet-list"},sheets.map((s,i)=>React.createElement("div",{className:`sheet-chip ${i===active?"active":""}`,key:s.id||i,onClick:()=>setActive(i)},
+          React.createElement("strong",null,`Page ${s.page}`),
+          React.createElement("div",{style:{color:"var(--dim)",fontSize:".82rem",marginTop:4}},s.sheet_title||s.sheet_type)
+        ))),
+        React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-outline",onClick:addRegion},"Add Region"),React.createElement("button",{className:"btn-primary-sm",onClick:()=>saveRegions()},"Save Regions"))
+      ),
+      React.createElement("div",null,
+        React.createElement("div",{className:"drawing-canvas",ref:canvasRef,onPointerMove:moveRegionPointer,onPointerUp:endRegionPointer,onPointerLeave:endRegionPointer},
+          fileUrl&&isImage&&React.createElement("img",{className:"drawing-preview image",src:fileUrl,alt:"Uploaded drawing preview"}),
+          fileUrl&&isPdf&&React.createElement("iframe",{className:"drawing-preview",src:`${fileUrl}#page=${activePage}&view=FitH`,title:"Uploaded drawing preview"}),
+          !fileUrl&&React.createElement("div",{className:"drawing-preview-empty"},"Upload a PDF or drawing image to preview it here."),
+          React.createElement("div",{className:"drawing-grid-bg"}),
+          visibleRegions.map(({r,index})=>React.createElement("div",{className:`region-box ${r.region_type}`,key:r.id||index,onPointerDown:e=>startRegionPointer(e,index,"move"),style:{left:`${r.x}%`,top:`${r.y}%`,width:`${r.w}%`,height:`${r.h}%`}},
+            r.label,
+            React.createElement("span",{className:"region-resize",onPointerDown:e=>startRegionPointer(e,index,"resize")})
+          ))
+        ),
+        React.createElement("div",{className:"region-editor"},
+          regions.map((r,i)=>React.createElement(React.Fragment,{key:r.id||i},
+            React.createElement("input",{className:"boq-input",value:r.label,onChange:e=>updateRegion(i,"label",e.target.value)}),
+            React.createElement("input",{className:"boq-input",value:r.region_type,onChange:e=>updateRegion(i,"region_type",e.target.value)}),
+            React.createElement("input",{className:"boq-input",type:"number",value:r.sheet_page,onChange:e=>updateRegion(i,"sheet_page",e.target.value)}),
+            React.createElement("input",{className:"boq-input",type:"number",placeholder:"sqft",value:r.quantity_sqft||"",onChange:e=>updateRegion(i,"quantity_sqft",e.target.value)}),
+            React.createElement("input",{className:"boq-input",value:r.quantity_hint,onChange:e=>updateRegion(i,"quantity_hint",e.target.value)})
+          ))
+        )
+      )
+    ),
+    React.createElement("div",{className:"takeoff-toolbar"},
+      React.createElement("button",{className:"btn-outline",onClick:()=>saveRegions()},"Recalculate Takeoffs"),
+      React.createElement("button",{className:"btn-primary-sm",onClick:exportTakeoffs},"Export Takeoffs CSV")
+    ),
+    takeoffs&&React.createElement(TakeoffSummary,{takeoffs})
+  );
+}
+
+function TakeoffSummary({takeoffs}){
+  const q=takeoffs.quantities||{};
+  const items=[
+    ["Slab Area",q.slab_area_sqft],
+    ["Wall Area",q.wall_area_sqft],
+    ["Facade Area",q.facade_area_sqft],
+    ["Glazing Area",q.window_glazing_area_sqft],
+    ["Flooring Area",q.flooring_area_sqft],
+    ["Plaster/Paint",q.plaster_paint_area_sqft],
+    ["MEP Allowance",q.mep_allowance_sqft],
+    ["Parking Area",q.parking_area_sqft],
+    ["Basement Area",q.basement_area_sqft],
+  ];
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-title"},"Automated Takeoffs"),
+    React.createElement("div",{className:"takeoff-grid"},items.map(([label,value])=>React.createElement("div",{className:"takeoff-card",key:label},
+      React.createElement("div",{className:"takeoff-val"},fmt.sqft(value)),
+      React.createElement("div",{className:"takeoff-label"},label)
+    ))),
+    React.createElement("div",{className:"disclaimer"},(takeoffs.assumptions||[]).join(" "))
+  );
+}
+
 function ReportActions({project,notify}){
   async function downloadEstimateCsv(){
     const r=await fetch(`${API}/api/projects/${project.id}/report.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
@@ -1413,7 +1652,7 @@ function BOQEditor({projectId,estimate,onUpdated,notify}){
   function setItem(divKey,index,field,value){
     setDraft(cur=>{
       const next=JSON.parse(JSON.stringify(cur));
-      next.divisions[divKey].items[index][field]=["qty","rate"].includes(field)?Number(value):value;
+      next.divisions[divKey].items[index][field]=["qty","rate","gst_rate"].includes(field)?Number(value):value;
       const item=next.divisions[divKey].items[index];
       item.amount=Math.round((Number(item.qty)||0)*(Number(item.rate)||0));
       next.divisions[divKey].amount=next.divisions[divKey].items.reduce((s,i)=>s+(Number(i.amount)||0),0);
@@ -1423,7 +1662,8 @@ function BOQEditor({projectId,estimate,onUpdated,notify}){
   function addItem(divKey){
     setDraft(cur=>{
       const next=JSON.parse(JSON.stringify(cur));
-      next.divisions[divKey].items.push({desc:"New BOQ item",qty:1,unit:"lot",rate:0,amount:0});
+      const count=(next.divisions[divKey].items||[]).length+1;
+      next.divisions[divKey].items.push({code:`NIR-USER-${count}`,desc:"New BOQ item",qty:1,unit:"lot",rate:0,gst_rate:12,source:"User entered",amount:0});
       return next;
     });
   }
@@ -1444,9 +1684,9 @@ function BOQEditor({projectId,estimate,onUpdated,notify}){
   }
   return React.createElement("div",{className:"workflow-stack"},
     React.createElement("div",{className:"boq-toolbar"},
-      React.createElement("div",null,
-        React.createElement("div",{className:"projects-title"},"Editable BOQ"),
-        React.createElement("div",{className:"page-subtitle"},"Edit quantities, rates, units, and line descriptions before export.")
+        React.createElement("div",null,
+        React.createElement("div",{className:"projects-title"},"Indian BOQ and GST Report"),
+        React.createElement("div",{className:"page-subtitle"},"Edit BOQ code, quantities, rates, GST and source before export.")
       ),
       React.createElement("button",{className:"btn-new",onClick:save,disabled:saving},saving?"Saving...":"Save BOQ")
     ),
@@ -1462,18 +1702,22 @@ function BOQEditor({projectId,estimate,onUpdated,notify}){
         React.createElement("div",{className:"division-body open"},
           React.createElement("table",{className:"line-items-table"},
             React.createElement("thead",null,React.createElement("tr",null,
+              React.createElement("th",null,"Code"),
               React.createElement("th",null,"Description"),
               React.createElement("th",null,"Qty"),
               React.createElement("th",null,"Unit"),
               React.createElement("th",null,"Rate"),
+              React.createElement("th",null,"GST %"),
               React.createElement("th",null,"Amount"),
               React.createElement("th",null,"")
             )),
             React.createElement("tbody",null,(div.items||[]).map((item,i)=>React.createElement("tr",{key:i},
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",value:item.code||"",onChange:e=>setItem(key,i,"code",e.target.value)})),
               React.createElement("td",null,React.createElement("input",{className:"boq-input",value:item.desc,onChange:e=>setItem(key,i,"desc",e.target.value)})),
               React.createElement("td",null,React.createElement("input",{className:"boq-input",type:"number",value:item.qty,onChange:e=>setItem(key,i,"qty",e.target.value)})),
               React.createElement("td",null,React.createElement("input",{className:"boq-input",value:item.unit,onChange:e=>setItem(key,i,"unit",e.target.value)})),
               React.createElement("td",null,React.createElement("input",{className:"boq-input",type:"number",value:item.rate,onChange:e=>setItem(key,i,"rate",e.target.value)})),
+              React.createElement("td",null,React.createElement("input",{className:"boq-input",type:"number",value:item.gst_rate??12,onChange:e=>setItem(key,i,"gst_rate",e.target.value)})),
               React.createElement("td",null,fmt.inrFull(item.amount)),
               React.createElement("td",null,React.createElement("button",{className:"btn-icon",onClick:()=>removeItem(key,i)},"x"))
             )))
@@ -1558,6 +1802,12 @@ function ScenarioSimulator({projectId,analysis,estimate,notify}){
     finish_level:"standard",
     flooring:"vitrified",
     facade:"paint",
+    wall_system:"aac_block",
+    window_glazing:"standard_upvc",
+    electrical_spec:"standard",
+    plumbing_spec:"standard",
+    floor_height_ft:10,
+    forecast_months:0,
     total_floors:analysis.total_floors||15,
     basement_levels:analysis.basement_levels||0,
     lift_count:analysis.lift_count||2
@@ -1601,7 +1851,10 @@ function ScenarioSimulator({projectId,analysis,estimate,notify}){
       ["Revised cost per sqft",result.revised_cost_per_sqft],
       [],
       ["Affected division","Base amount","Revised amount","Delta"],
-      ...(result.affected_divisions||[]).map(d=>[d.name,d.base_amount,d.revised_amount,d.delta])
+      ...(result.affected_divisions||[]).map(d=>[d.name,d.base_amount,d.revised_amount,d.delta]),
+      [],
+      ["BOQ code","Line item","Base amount","Revised amount","Delta"],
+      ...(result.line_item_impacts||[]).map(i=>[i.code,i.desc,i.base_amount,i.revised_amount,i.delta])
     ];
     const csv=rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\\n");
     const blob=new Blob([csv],{type:"text/csv"});
@@ -1638,6 +1891,12 @@ function ScenarioSimulator({projectId,analysis,estimate,notify}){
         select("finish_level","Finish Level",["economy","standard","premium","luxury"]),
         select("flooring","Flooring",["ceramic","vitrified","marble","wooden"]),
         select("facade","Facade",["paint","texture","stone","glass"]),
+        select("wall_system","Wall System",["brick","aac_block","flyash_block","drywall"]),
+        select("window_glazing","Window / Glazing",["standard_upvc","aluminium","double_glazed","curtain_wall"]),
+        select("electrical_spec","Electrical Spec",["basic","standard","premium","home_automation"]),
+        select("plumbing_spec","Plumbing Spec",["basic","standard","premium","luxury"]),
+        range("floor_height_ft","Floor Height ft",8,16,.5),
+        range("forecast_months","Start After Months",0,24),
         range("total_floors","Floors",1,60),
         range("basement_levels","Basements",0,6),
         range("lift_count","Lifts",0,16)
@@ -1656,6 +1915,16 @@ function ScenarioSimulator({projectId,analysis,estimate,notify}){
               React.createElement("span",null,div.name),
               React.createElement("strong",{style:{color:div.delta>=0?"var(--red)":"var(--green)"}},`${div.delta>=0?"+":"-"}${fmt.inr(Math.abs(div.delta))}`)
             ))
+          ),
+          result&&React.createElement("div",{className:"saved-scenarios"},
+            React.createElement("div",{className:"info-card-title"},"Top BOQ Line Impacts"),
+            React.createElement("div",{className:"affected-list"},
+              (result.line_item_impacts||[]).slice(0,6).map(item=>React.createElement("div",{className:"impact-row",key:item.code+item.desc},
+                React.createElement("span",{className:"impact-code"},item.code),
+                React.createElement("span",{className:"impact-desc"},item.desc),
+                React.createElement("strong",{style:{color:item.delta>=0?"var(--red)":"var(--green)"}},`${item.delta>=0?"+":"-"}${fmt.inr(Math.abs(item.delta))}`)
+              ))
+            )
           ),
           result&&React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},result.summary),
           React.createElement("div",{className:"saved-scenarios"},
@@ -1708,11 +1977,19 @@ function ProjectDetail({projectId,onBack,notify}){
   }
 
   function handleAnalysisUpdate(analysis,estimate){
-    setProject(p=>({...p,analysis,estimate,status:"analyzed"}));
+    setProject(p=>({...p,analysis,estimate,takeoffs:analysis.takeoffs||p.takeoffs,status:"analyzed"}));
   }
 
   function handleEstimateUpdate(estimate){
     setProject(p=>({...p,estimate,status:"analyzed"}));
+  }
+
+  function handleParcelUpdate(parcel_data){
+    setProject(p=>({...p,parcel_data,address:parcel_data.address||p.address}));
+  }
+
+  function handleDrawingUpdate(updates){
+    setProject(p=>({...p,...updates}));
   }
 
   if(loading)return React.createElement("div",{className:"loading-state"},React.createElement("div",{className:"spinner"}),React.createElement("p",null,"Loading project..."));
@@ -1778,10 +2055,13 @@ function ProjectDetail({projectId,onBack,notify}){
         React.createElement("p",null,"AI is reading your drawing and generating cost estimate...")
       ),
 
+      React.createElement(ParcelEditor,{project,onUpdated:handleParcelUpdate,notify}),
+
       // Analysis results
       !analyzing&&analysis&&React.createElement(React.Fragment,null,
         React.createElement(DrawingReview,{analysis}),
         React.createElement(ExtractionEditor,{projectId,analysis,onUpdated:handleAnalysisUpdate,notify}),
+        React.createElement(DrawingIntelligence,{projectId,project,onUpdated:handleDrawingUpdate,notify}),
         React.createElement("div",{className:"analysis-grid"},
           // Building stats
           React.createElement("div",{className:"info-card"},

@@ -87,6 +87,10 @@ def init_db():
                 file_mime TEXT,
                 file_size INTEGER,
                 file_data BLOB,
+                parcel_data TEXT,
+                drawing_sheets TEXT,
+                drawing_regions TEXT,
+                takeoffs TEXT,
                 analysis TEXT,
                 estimate TEXT,
                 created_at TEXT NOT NULL,
@@ -116,6 +120,10 @@ def init_db():
             "file_mime": "ALTER TABLE projects ADD COLUMN file_mime TEXT",
             "file_size": "ALTER TABLE projects ADD COLUMN file_size INTEGER",
             "file_data": "ALTER TABLE projects ADD COLUMN file_data BLOB",
+            "parcel_data": "ALTER TABLE projects ADD COLUMN parcel_data TEXT",
+            "drawing_sheets": "ALTER TABLE projects ADD COLUMN drawing_sheets TEXT",
+            "drawing_regions": "ALTER TABLE projects ADD COLUMN drawing_regions TEXT",
+            "takeoffs": "ALTER TABLE projects ADD COLUMN takeoffs TEXT",
         }
         for col, sql in migrations.items():
             if col not in existing:
@@ -189,6 +197,10 @@ def public_project(row):
     project.pop("file_data", None)
     project["analysis"] = json.loads(row["analysis"]) if row["analysis"] else None
     project["estimate"] = json.loads(row["estimate"]) if row["estimate"] else None
+    project["parcel_data"] = json.loads(row["parcel_data"]) if row["parcel_data"] else None
+    project["drawing_sheets"] = json.loads(row["drawing_sheets"]) if row["drawing_sheets"] else None
+    project["drawing_regions"] = json.loads(row["drawing_regions"]) if row["drawing_regions"] else None
+    project["takeoffs"] = json.loads(row["takeoffs"]) if row["takeoffs"] else None
     return project
 
 def require_admin_key():
@@ -233,6 +245,36 @@ def safe_float(value, default=0, min_value=0, max_value=None):
     if max_value is not None and parsed > max_value:
         parsed = max_value
     return parsed
+
+def parse_json_field(row, key, default):
+    try:
+        return json.loads(row[key]) if row[key] else copy.deepcopy(default)
+    except Exception:
+        return copy.deepcopy(default)
+
+def normalize_parcel(data, project):
+    address = (data.get("address") or project["address"] or "").strip()
+    city = (data.get("city") or "").strip()
+    state = (data.get("state") or "Delhi NCR").strip()
+    site_area = safe_float(data.get("site_area_sqft"), 0, 0)
+    far = safe_float(data.get("permissible_far"), 0, 0)
+    coverage = safe_float(data.get("ground_coverage_pct"), 0, 0, 100)
+    q = "+".join(x for x in [address, city, state] if x).replace(" ", "+")
+    return {
+        "address": address,
+        "city": city,
+        "state": state,
+        "plot_number": (data.get("plot_number") or "").strip(),
+        "khasra_number": (data.get("khasra_number") or "").strip(),
+        "rera_number": (data.get("rera_number") or "").strip(),
+        "site_area_sqft": site_area,
+        "permissible_far": far,
+        "ground_coverage_pct": coverage,
+        "land_use": (data.get("land_use") or "Residential").strip(),
+        "gis_reference": (data.get("gis_reference") or "").strip(),
+        "map_url": data.get("map_url") or (f"https://www.google.com/maps/search/?api=1&query={q}" if q else ""),
+        "notes": (data.get("notes") or "").strip(),
+    }
 
 @app.route("/", methods=["GET"])
 def home():
@@ -398,6 +440,7 @@ def upload_project_drawing(project_id):
         """
         UPDATE projects
         SET file_name = ?, file_mime = ?, file_size = ?, file_data = ?,
+            drawing_sheets = NULL, drawing_regions = NULL, takeoffs = NULL,
             analysis = NULL, estimate = NULL, status = 'uploaded', updated_at = ?
         WHERE id = ?
         """,
@@ -410,6 +453,45 @@ def upload_project_drawing(project_id):
         "message": "Drawing uploaded.",
         "file": {"name": file.filename, "mime": mime, "size": len(data)}
     })
+
+@app.route("/api/projects/<project_id>/file", methods=["GET"])
+def project_drawing_file(project_id):
+    token = request.args.get("token", "")
+    user_id = verify_token(token) if token else None
+    if not user_id:
+        user = get_current_user()
+        user_id = user["id"] if user else None
+    if not user_id:
+        return jsonify({"success": False, "message": "Login required."}), 401
+
+    row = get_db().execute(
+        "SELECT file_name, file_mime, file_data FROM projects WHERE id = ? AND user_id = ?",
+        (project_id, user_id)
+    ).fetchone()
+    if not row or not row["file_data"]:
+        return jsonify({"success": False, "message": "Drawing file not found."}), 404
+
+    filename = (row["file_name"] or "drawing").replace('"', "")
+    return Response(
+        row["file_data"],
+        mimetype=row["file_mime"] or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "private, no-store",
+        }
+    )
+
+@app.route("/api/projects/<project_id>/parcel", methods=["PUT"])
+@require_auth
+def update_project_parcel(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    parcel = normalize_parcel(request.get_json() or {}, row)
+    db.execute("UPDATE projects SET parcel_data = ?, address = ?, updated_at = ? WHERE id = ?", (json.dumps(parcel), parcel["address"] or row["address"], now(), project_id))
+    db.commit()
+    return jsonify({"success": True, "parcel_data": parcel})
 
 @app.route("/api/projects/<project_id>/analyze", methods=["POST"])
 @require_auth
@@ -427,14 +509,18 @@ def analyze_project(project_id):
 
     analysis = analyze_drawing_with_ai(row)
     estimate = calculate_estimate(analysis)
+    parcel = parse_json_field(row, "parcel_data", {})
+    sheets = default_sheet_intelligence(analysis)
+    regions = default_regions(analysis)
+    takeoffs = calculate_takeoffs(analysis, regions, parcel)
 
     db.execute(
-        "UPDATE projects SET analysis = ?, estimate = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
-        (json.dumps(analysis), json.dumps(estimate), now(), project_id)
+        "UPDATE projects SET analysis = ?, estimate = ?, drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
+        (json.dumps(analysis), json.dumps(estimate), json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
     )
     db.commit()
 
-    return jsonify({"success": True, "analysis": analysis, "estimate": estimate})
+    return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
 
 @app.route("/api/projects/<project_id>/analysis", methods=["PUT"])
 @require_auth
@@ -449,14 +535,111 @@ def update_project_analysis(project_id):
     analysis["ai_source"] = data.get("ai_source") or "user_reviewed"
     analysis["notes"] = data.get("notes") or "User-reviewed extraction values."
     estimate = calculate_estimate(analysis)
+    parcel = parse_json_field(row, "parcel_data", {})
+    regions = parse_json_field(row, "drawing_regions", default_regions(analysis))
+    takeoffs = calculate_takeoffs(analysis, regions, parcel)
 
     db.execute(
-        "UPDATE projects SET analysis = ?, estimate = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
-        (json.dumps(analysis), json.dumps(estimate), now(), project_id)
+        "UPDATE projects SET analysis = ?, estimate = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
+        (json.dumps(analysis), json.dumps(estimate), json.dumps(takeoffs), now(), project_id)
     )
     db.commit()
 
-    return jsonify({"success": True, "analysis": analysis, "estimate": estimate})
+    return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "takeoffs": takeoffs})
+
+@app.route("/api/projects/<project_id>/drawing-intelligence", methods=["POST"])
+@require_auth
+def generate_drawing_intelligence(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["analysis"]:
+        return jsonify({"success": False, "message": "Analyze the drawing before generating sheet intelligence."}), 400
+    analysis = json.loads(row["analysis"])
+    parcel = parse_json_field(row, "parcel_data", {})
+    sheets = default_sheet_intelligence(analysis)
+    regions = default_regions(analysis)
+    takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    db.execute(
+        "UPDATE projects SET drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
+    )
+    db.commit()
+    return jsonify({"success": True, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
+
+@app.route("/api/projects/<project_id>/drawing-sheets", methods=["PUT"])
+@require_auth
+def update_drawing_sheets(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    sheets = (request.get_json() or {}).get("drawing_sheets") or []
+    clean = []
+    for i, sheet in enumerate(sheets):
+        clean.append({
+            "id": sheet.get("id") or uid(),
+            "page": safe_int(sheet.get("page"), i + 1, 1),
+            "sheet_type": sheet.get("sheet_type") or "floor_plan",
+            "sheet_title": sheet.get("sheet_title") or f"Sheet {i + 1}",
+            "floor_name": sheet.get("floor_name") or "",
+            "scale": sheet.get("scale") or "",
+            "north_direction": sheet.get("north_direction") or "",
+            "annotations": sheet.get("annotations") or "",
+            "confidence": sheet.get("confidence") or "medium",
+        })
+    db.execute("UPDATE projects SET drawing_sheets = ?, updated_at = ? WHERE id = ?", (json.dumps(clean), now(), project_id))
+    db.commit()
+    return jsonify({"success": True, "drawing_sheets": clean})
+
+@app.route("/api/projects/<project_id>/drawing-regions", methods=["PUT"])
+@require_auth
+def update_drawing_regions(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    analysis = json.loads(row["analysis"]) if row["analysis"] else fallback_analysis(row["name"], "No analysis found.")
+    parcel = parse_json_field(row, "parcel_data", {})
+    regions = (request.get_json() or {}).get("drawing_regions") or []
+    clean = []
+    for region in regions:
+        clean.append({
+            "id": region.get("id") or uid(),
+            "sheet_page": safe_int(region.get("sheet_page"), 1, 1),
+            "region_type": region.get("region_type") or "room_zone",
+            "label": region.get("label") or "Region",
+            "x": safe_float(region.get("x"), 10, 0, 100),
+            "y": safe_float(region.get("y"), 10, 0, 100),
+            "w": safe_float(region.get("w"), 20, 1, 100),
+            "h": safe_float(region.get("h"), 20, 1, 100),
+            "quantity_sqft": safe_float(region.get("quantity_sqft"), 0, 0),
+            "quantity_hint": region.get("quantity_hint") or "",
+            "confidence": region.get("confidence") or "medium",
+        })
+    takeoffs = calculate_takeoffs(analysis, clean, parcel)
+    db.execute("UPDATE projects SET drawing_regions = ?, takeoffs = ?, updated_at = ? WHERE id = ?", (json.dumps(clean), json.dumps(takeoffs), now(), project_id))
+    db.commit()
+    return jsonify({"success": True, "drawing_regions": clean, "takeoffs": takeoffs})
+
+@app.route("/api/projects/<project_id>/takeoffs", methods=["POST", "PUT"])
+@require_auth
+def project_takeoffs(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if request.method == "PUT":
+        takeoffs = (request.get_json() or {}).get("takeoffs") or {}
+    else:
+        analysis = json.loads(row["analysis"]) if row["analysis"] else fallback_analysis(row["name"], "No analysis found.")
+        parcel = parse_json_field(row, "parcel_data", {})
+        regions = parse_json_field(row, "drawing_regions", default_regions(analysis))
+        takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    db.execute("UPDATE projects SET takeoffs = ?, updated_at = ? WHERE id = ?", (json.dumps(takeoffs), now(), project_id))
+    db.commit()
+    return jsonify({"success": True, "takeoffs": takeoffs})
 
 def fallback_analysis(project_name, reason):
     return {
@@ -483,6 +666,105 @@ def fallback_analysis(project_name, reason):
             "assumptions": ["Residential tower in Delhi NCR", "RCC frame structure", "Standard finish level"]
         },
         "notes": f"Demo extraction for {project_name}. {reason}"
+    }
+
+def default_sheet_intelligence(analysis):
+    floors = safe_int(analysis.get("total_floors"), 12, 1)
+    sheets = [
+        {
+            "id": uid(),
+            "page": 1,
+            "sheet_type": "site_plan",
+            "sheet_title": "Site Plan",
+            "floor_name": "Site",
+            "scale": "1:500",
+            "north_direction": "Not verified",
+            "annotations": "Verify plot boundary, road width and setbacks.",
+            "confidence": "medium",
+        },
+        {
+            "id": uid(),
+            "page": 2,
+            "sheet_type": "floor_plan",
+            "sheet_title": "Typical Floor Plan",
+            "floor_name": "Typical Floor",
+            "scale": "1:100",
+            "north_direction": "Not verified",
+            "annotations": "AI assumes typical floor repeats across tower.",
+            "confidence": "medium",
+        },
+        {
+            "id": uid(),
+            "page": 3,
+            "sheet_type": "elevation",
+            "sheet_title": "Front Elevation",
+            "floor_name": f"G+{max(floors - 1, 0)} Elevation",
+            "scale": "1:100",
+            "north_direction": "Elevation view",
+            "annotations": "Facade zones and glazing areas are approximate until manually verified.",
+            "confidence": "medium",
+        },
+    ]
+    return sheets
+
+def default_regions(analysis):
+    return [
+        {"id": uid(), "sheet_page": 2, "region_type": "room_zone", "label": "Apartment/unit zones", "x": 8, "y": 14, "w": 38, "h": 34, "quantity_hint": "flooring/plaster basis", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 2, "region_type": "core", "label": "Lift and staircase core", "x": 52, "y": 18, "w": 18, "h": 28, "quantity_hint": "vertical circulation", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 3, "region_type": "facade_zone", "label": "Main facade zone", "x": 10, "y": 12, "w": 72, "h": 58, "quantity_hint": "facade/plaster/paint", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 3, "region_type": "opening", "label": "Window/glazing band", "x": 18, "y": 24, "w": 56, "h": 18, "quantity_hint": "window/glazing", "confidence": "low"},
+    ]
+
+def calculate_takeoffs(analysis, regions=None, parcel=None):
+    bua = safe_float(analysis.get("total_built_up_area_sqft"), 75000, 1)
+    carpet = safe_float(analysis.get("total_carpet_area_sqft"), bua * 0.72, 1)
+    floors = max(safe_int(analysis.get("total_floors"), 12, 1), 1)
+    units = max(safe_int(analysis.get("total_units"), 60, 1), 1)
+    basement = safe_int(analysis.get("basement_levels"), 0, 0)
+    regions = regions or []
+
+    def region_area(*types):
+        total = 0
+        wanted = set(types)
+        for region in regions:
+            if region.get("region_type") not in wanted:
+                continue
+            area = safe_float(region.get("quantity_sqft"), 0, 0)
+            if not area:
+                match = re.search(r"(\d+(?:\.\d+)?)", str(region.get("quantity_hint") or "").replace(",", ""))
+                area = safe_float(match.group(1), 0, 0) if match else 0
+            total += area
+        return total
+
+    facade_region_factor = 1 + min(len([r for r in (regions or []) if r.get("region_type") == "facade_zone"]) * 0.03, 0.12)
+    glazing_region_factor = 1 + min(len([r for r in (regions or []) if r.get("region_type") == "opening"]) * 0.04, 0.16)
+    site_area = safe_float((parcel or {}).get("site_area_sqft"), analysis.get("plot_area_sqft", 0), 0)
+    slab_area = region_area("slab", "slab_zone") or round(bua * 1.03, 2)
+    flooring_area = region_area("room", "room_zone", "flooring") or round(carpet * 1.08, 2)
+    wall_area = region_area("wall", "wall_zone") or round(bua * 1.65, 2)
+    plaster_area = region_area("plaster", "paint", "wall", "wall_zone") or round(bua * 2.05, 2)
+    facade_area = region_area("facade", "facade_zone", "elevation") or round((bua / floors) * floors * 0.42 * facade_region_factor, 2)
+    glazing_area = region_area("opening", "window", "glazing") or round((bua / floors) * floors * 0.115 * glazing_region_factor, 2)
+    return {
+        "method": "MVP AI-assisted takeoff with editable assumptions",
+        "confidence": "medium",
+        "quantities": {
+            "slab_area_sqft": round(slab_area, 2),
+            "flooring_area_sqft": round(flooring_area, 2),
+            "wall_area_sqft": round(wall_area, 2),
+            "plaster_paint_area_sqft": round(plaster_area, 2),
+            "facade_area_sqft": round(facade_area, 2),
+            "window_glazing_area_sqft": round(glazing_area, 2),
+            "mep_allowance_sqft": round(bua, 2),
+            "parking_area_sqft": round(max(units, analysis.get("parking_spaces", units)) * 320, 2),
+            "basement_area_sqft": round((bua / floors) * basement, 2),
+            "site_development_area_sqft": round(max(site_area - (bua / floors), 0), 2) if site_area else 0,
+        },
+        "assumptions": [
+            "Exact CAD geometry is not available in MVP; quantities are derived from extracted areas and editable regions.",
+            "Facade and glazing quantities improve when elevation regions are verified.",
+            "MEP is treated as a rough sqft allowance until MEP drawings are parsed.",
+        ],
     }
 
 def parse_ai_json(text):
@@ -616,10 +898,10 @@ def calculate_estimate(analysis):
     lifts = analysis.get("lift_count", 3)
     parking = analysis.get("parking_spaces", 60)
 
-    def item(desc, qty, unit, rate):
+    def item(desc, qty, unit, rate, gst_rate=12):
         qty = round(float(qty), 2)
         rate = round(float(rate), 2)
-        return {"desc": desc, "qty": qty, "unit": unit, "rate": rate, "amount": int(qty * rate)}
+        return {"desc": desc, "qty": qty, "unit": unit, "rate": rate, "gst_rate": gst_rate, "amount": int(qty * rate)}
 
     divisions = {
         "01_general": {
@@ -756,7 +1038,11 @@ def calculate_estimate(analysis):
     ]
 
     subtotal = sum(sum(i["amount"] for i in div["items"]) for div in divisions.values())
-    for div in divisions.values():
+    for div_key, div in divisions.items():
+        for index, line in enumerate(div.get("items", []), start=1):
+            line.setdefault("code", f"NIR-CPWD-{div_key.split('_')[0]}-{index:02d}")
+            line.setdefault("source", "CPWD/DSR benchmark + Delhi NCR seed")
+            line.setdefault("gst_rate", 12)
         div["amount"] = sum(i["amount"] for i in div["items"])
     total = subtotal
     gst = int(total * 0.12)
@@ -767,6 +1053,13 @@ def calculate_estimate(analysis):
         "cost_per_sqft": int(total / bua),
         "subtotal": subtotal,
         "gst_12pct": gst,
+        "gst_breakup": {
+            "taxable_value": subtotal,
+            "cgst_6pct": int(total * 0.06),
+            "sgst_6pct": int(total * 0.06),
+            "igst_12pct": 0,
+            "total_gst": gst,
+        },
         "total_with_gst": total + gst,
         "divisions": divisions,
         "rates_source": "DSR/CPWD benchmark seed rates + Delhi NCR market allowances",
@@ -781,6 +1074,12 @@ SCENARIO_DEFAULTS = {
     "finish_level": "standard",
     "flooring": "vitrified",
     "facade": "paint",
+    "wall_system": "aac_block",
+    "window_glazing": "standard_upvc",
+    "electrical_spec": "standard",
+    "plumbing_spec": "standard",
+    "floor_height_ft": 10,
+    "forecast_months": 0,
     "total_floors": None,
     "basement_levels": None,
     "lift_count": None,
@@ -792,6 +1091,10 @@ SPEC_FACTORS = {
     "finish_level": {"economy": 0.88, "standard": 1.0, "premium": 1.22, "luxury": 1.45},
     "flooring": {"ceramic": 0.90, "vitrified": 1.0, "marble": 1.35, "wooden": 1.28},
     "facade": {"paint": 1.0, "texture": 1.12, "stone": 1.42, "glass": 1.95},
+    "wall_system": {"brick": 1.08, "aac_block": 1.0, "flyash_block": 0.96, "drywall": 1.18},
+    "window_glazing": {"standard_upvc": 1.0, "aluminium": 1.12, "double_glazed": 1.36, "curtain_wall": 1.85},
+    "electrical_spec": {"basic": 0.88, "standard": 1.0, "premium": 1.18, "home_automation": 1.42},
+    "plumbing_spec": {"basic": 0.9, "standard": 1.0, "premium": 1.2, "luxury": 1.38},
 }
 
 def normalize_scenario_options(options, analysis):
@@ -804,7 +1107,13 @@ def normalize_scenario_options(options, analysis):
     normalized["finish_level"] = normalized["finish_level"] if normalized["finish_level"] in SPEC_FACTORS["finish_level"] else "standard"
     normalized["flooring"] = normalized["flooring"] if normalized["flooring"] in SPEC_FACTORS["flooring"] else "vitrified"
     normalized["facade"] = normalized["facade"] if normalized["facade"] in SPEC_FACTORS["facade"] else "paint"
+    normalized["wall_system"] = normalized["wall_system"] if normalized["wall_system"] in SPEC_FACTORS["wall_system"] else "aac_block"
+    normalized["window_glazing"] = normalized["window_glazing"] if normalized["window_glazing"] in SPEC_FACTORS["window_glazing"] else "standard_upvc"
+    normalized["electrical_spec"] = normalized["electrical_spec"] if normalized["electrical_spec"] in SPEC_FACTORS["electrical_spec"] else "standard"
+    normalized["plumbing_spec"] = normalized["plumbing_spec"] if normalized["plumbing_spec"] in SPEC_FACTORS["plumbing_spec"] else "standard"
     normalized["steel_rate"] = safe_float(normalized.get("steel_rate"), 82, 45, 160)
+    normalized["floor_height_ft"] = safe_float(normalized.get("floor_height_ft"), 10, 8, 16)
+    normalized["forecast_months"] = safe_int(normalized.get("forecast_months"), 0, 0, 24)
     normalized["total_floors"] = safe_int(normalized.get("total_floors"), analysis.get("total_floors", 15), 1, 80)
     normalized["basement_levels"] = safe_int(normalized.get("basement_levels"), analysis.get("basement_levels", 0), 0, 8)
     normalized["lift_count"] = safe_int(normalized.get("lift_count"), analysis.get("lift_count", 2), 0, 24)
@@ -812,11 +1121,14 @@ def normalize_scenario_options(options, analysis):
 
 def recalc_estimate_totals(estimate):
     subtotal = 0
-    for div in estimate["divisions"].values():
+    for div_key, div in estimate["divisions"].items():
         div_total = 0
-        for item in div.get("items", []):
+        for index, item in enumerate(div.get("items", []), start=1):
             item["rate"] = round(float(item.get("rate", 0)), 2)
             item["amount"] = int(float(item.get("qty", 0)) * item["rate"])
+            item.setdefault("gst_rate", 12)
+            item.setdefault("code", f"NIR-CPWD-{div_key.split('_')[0]}-{index:02d}")
+            item.setdefault("source", "User-edited BOQ and seed rate library")
             div_total += item["amount"]
         div["amount"] = div_total
         subtotal += div_total
@@ -824,6 +1136,13 @@ def recalc_estimate_totals(estimate):
     bua = max(safe_int(estimate.get("built_up_area"), 1, 1), 1)
     estimate["subtotal"] = subtotal
     estimate["gst_12pct"] = gst
+    estimate["gst_breakup"] = {
+        "taxable_value": subtotal,
+        "cgst_6pct": int(subtotal * 0.06),
+        "sgst_6pct": int(subtotal * 0.06),
+        "igst_12pct": 0,
+        "total_gst": gst,
+    }
     estimate["total_with_gst"] = subtotal + gst
     estimate["cost_per_sqft"] = int(subtotal / bua)
     return estimate
@@ -834,6 +1153,17 @@ def apply_factor_to_divisions(estimate, division_keys, factor, affected):
     for key in division_keys:
         div = estimate["divisions"].get(key)
         if not div:
+            continue
+        for item in div.get("items", []):
+            item["rate"] = round(float(item.get("rate", 0)) * factor, 2)
+        affected.add(key)
+
+def apply_forecast_factor(estimate, months, affected):
+    if months <= 0:
+        return
+    factor = 1 + min(months, 24) * 0.006
+    for key, div in estimate["divisions"].items():
+        if key == "16_overheads":
             continue
         for item in div.get("items", []):
             item["rate"] = round(float(item.get("rate", 0)) * factor, 2)
@@ -859,8 +1189,39 @@ def apply_scenario_adjustments(estimate, options):
     apply_factor_to_divisions(estimate, ["06_doors_windows", "07_finishes", "10_plumbing", "11_electrical"], finish_factor, affected)
     apply_factor_to_divisions(estimate, ["07_finishes"], SPEC_FACTORS["flooring"][options["flooring"]], affected)
     apply_factor_to_divisions(estimate, ["08_facade"], SPEC_FACTORS["facade"][options["facade"]], affected)
+    apply_factor_to_divisions(estimate, ["05_masonry"], SPEC_FACTORS["wall_system"][options["wall_system"]], affected)
+    apply_factor_to_divisions(estimate, ["06_doors_windows"], SPEC_FACTORS["window_glazing"][options["window_glazing"]], affected)
+    apply_factor_to_divisions(estimate, ["11_electrical"], SPEC_FACTORS["electrical_spec"][options["electrical_spec"]], affected)
+    apply_factor_to_divisions(estimate, ["10_plumbing"], SPEC_FACTORS["plumbing_spec"][options["plumbing_spec"]], affected)
+
+    height_factor = 1 + max(options["floor_height_ft"] - 10, 0) * 0.025
+    apply_factor_to_divisions(estimate, ["04_structure", "05_masonry", "08_facade", "10_plumbing", "11_electrical"], height_factor, affected)
+    apply_forecast_factor(estimate, options["forecast_months"], affected)
 
     return recalc_estimate_totals(estimate), sorted(affected)
+
+def scenario_line_item_impacts(base_estimate, revised_estimate, max_items=8):
+    impacts = []
+    for div_key, revised_div in (revised_estimate.get("divisions") or {}).items():
+        base_div = (base_estimate.get("divisions") or {}).get(div_key, {})
+        base_items = base_div.get("items", [])
+        for index, revised_item in enumerate(revised_div.get("items", [])):
+            base_item = base_items[index] if index < len(base_items) else {}
+            base_amount = safe_float(base_item.get("amount"), 0, 0)
+            revised_amount = safe_float(revised_item.get("amount"), 0, 0)
+            delta = revised_amount - base_amount
+            if abs(delta) < 1:
+                continue
+            impacts.append({
+                "division": revised_div.get("name"),
+                "code": revised_item.get("code") or f"NIR-{div_key}-{index + 1}",
+                "desc": revised_item.get("desc"),
+                "base_amount": int(base_amount),
+                "revised_amount": int(revised_amount),
+                "delta": int(delta),
+            })
+    impacts.sort(key=lambda item: abs(item["delta"]), reverse=True)
+    return impacts[:max_items]
 
 def calculate_scenario(analysis, base_estimate, options):
     options = normalize_scenario_options(options, analysis)
@@ -908,6 +1269,7 @@ def calculate_scenario(analysis, base_estimate, options):
         "revised_analysis": revised_analysis,
         "revised_estimate": revised_estimate,
         "affected_divisions": affected_divisions,
+        "line_item_impacts": scenario_line_item_impacts(base_estimate, revised_estimate),
         "summary": build_scenario_summary(options, delta, percent),
     }
 
@@ -916,7 +1278,8 @@ def build_scenario_summary(options, delta, percent):
     return (
         f"{options['name']} {direction} total cost by {abs(percent)}% using "
         f"{options['concrete_grade']} RCC, {options['cement_type']} cement, "
-        f"{options['finish_level']} finishes and {options['facade']} facade."
+        f"{options['finish_level']} finishes, {options['facade']} facade, "
+        f"{options['wall_system']} walls and {options['forecast_months']}-month price timing."
     )
 
 @app.route("/api/projects/<project_id>/scenario", methods=["POST"])
@@ -1050,17 +1413,49 @@ def project_report_csv(project_id):
     writer.writerow(["Generated At", report["generated_at"]])
     writer.writerow(["Project", project["name"]])
     writer.writerow(["Address", project.get("address") or ""])
+    writer.writerow(["Taxable Value", estimate.get("subtotal")])
+    writer.writerow(["CGST 6%", (estimate.get("gst_breakup") or {}).get("cgst_6pct")])
+    writer.writerow(["SGST 6%", (estimate.get("gst_breakup") or {}).get("sgst_6pct")])
     writer.writerow(["Total With GST", estimate.get("total_with_gst")])
     writer.writerow(["Cost Per Sqft", estimate.get("cost_per_sqft")])
     writer.writerow([])
-    writer.writerow(["Division", "Description", "Qty", "Unit", "Rate", "Amount"])
+    writer.writerow(["Division", "BOQ Code", "Description", "Qty", "Unit", "Rate", "GST %", "Amount", "Source"])
     for key, div in (estimate.get("divisions") or {}).items():
         for item in div.get("items", []):
-            writer.writerow([div.get("name"), item.get("desc"), item.get("qty"), item.get("unit"), item.get("rate"), item.get("amount")])
+            writer.writerow([div.get("name"), item.get("code"), item.get("desc"), item.get("qty"), item.get("unit"), item.get("rate"), item.get("gst_rate", 12), item.get("amount"), item.get("source", "")])
     return Response(
         output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.csv"}
+    )
+
+@app.route("/api/projects/<project_id>/takeoffs.csv", methods=["GET"])
+@require_auth
+def project_takeoffs_csv(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["takeoffs"]:
+        return jsonify({"success": False, "message": "Generate takeoffs before exporting."}), 400
+    takeoffs = json.loads(row["takeoffs"])
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Nirman.AI Automated Takeoffs"])
+    writer.writerow(["Project", row["name"]])
+    writer.writerow(["Generated At", now()])
+    writer.writerow(["Method", takeoffs.get("method")])
+    writer.writerow([])
+    writer.writerow(["Quantity", "Value", "Unit"])
+    for key, value in (takeoffs.get("quantities") or {}).items():
+        writer.writerow([key, value, "sqft"])
+    writer.writerow([])
+    writer.writerow(["Assumptions"])
+    for item in takeoffs.get("assumptions") or []:
+        writer.writerow([item])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=nirman_takeoffs_{project_id}.csv"}
     )
 
 @app.route("/api/waitlist", methods=["POST"])
