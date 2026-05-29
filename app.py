@@ -10,6 +10,7 @@ import copy
 import csv
 import io
 import re
+import math
 import urllib.error
 import urllib.request
 
@@ -48,6 +49,30 @@ RATE_LIBRARY = {
         {"item": "Steel fixer", "unit": "day", "rate": 1050, "source": "Delhi NCR seed"},
     ],
     "spec_options": SPEC_FACTORS if "SPEC_FACTORS" in globals() else {},
+}
+
+ESTIMATE_RATE_ALIASES = {
+    "Mobilization, barricading and temporary site office": "Mobilization, barricading and temporary site office",
+    "Site supervision, safety and statutory coordination": "Site supervision, safety and statutory coordination",
+    "Survey, setting out and documentation": "Survey, setting out and documentation",
+    "Bulk excavation in ordinary soil": "Bulk excavation in ordinary soil",
+    "Backfilling, compaction and disposal lead": "Backfilling, compaction and disposal lead",
+    "Anti-termite treatment below plinth": "Anti-termite treatment below plinth",
+    "PCC 1:4:8 below foundations": "PCC 1:4:8 below foundations",
+    "RCC footings, raft and pedestal concrete": "Ready Mix Concrete M25",
+    "Reinforcement steel for foundation": "TMT Steel Fe500D",
+    "RCC columns, beams and slabs": "Ready Mix Concrete M25",
+    "TMT reinforcement Fe500D": "TMT Steel Fe500D",
+    "Centering, shuttering and staging": "Centering, shuttering and staging",
+    "AAC/block masonry external walls": "AAC/block masonry",
+    "Internal partition masonry": "Internal partition masonry",
+    "Lintel, sill and minor RCC bands": "Lintel, sill and minor RCC bands",
+    "Aluminium/uPVC windows with glazing": "Aluminium/uPVC windows with glazing",
+    "Internal plaster and putty base": "Internal plaster and putty base",
+    "Vitrified tile flooring with skirting": "Vitrified flooring",
+    "Internal painting, primer and finish coats": "Internal painting, primer and finish coats",
+    "External plaster and waterproof putty": "External plaster and waterproof putty",
+    "Weatherproof exterior paint": "Weatherproof exterior paint",
 }
 
 def get_db():
@@ -114,6 +139,16 @@ def init_db():
                 result TEXT NOT NULL,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS rate_items (
+                id TEXT PRIMARY KEY,
+                category TEXT NOT NULL,
+                item TEXT NOT NULL UNIQUE,
+                unit TEXT NOT NULL,
+                rate REAL NOT NULL,
+                source TEXT,
+                city TEXT DEFAULT 'Delhi NCR',
+                updated_at TEXT NOT NULL
+            );
         """)
         existing = {row["name"] for row in db.execute("PRAGMA table_info(projects)").fetchall()}
         migrations = {
@@ -128,6 +163,7 @@ def init_db():
         for col, sql in migrations.items():
             if col not in existing:
                 db.execute(sql)
+        seed_rate_items(db)
         db.commit()
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "nirman-secret-2025")
@@ -257,6 +293,20 @@ def normalize_parcel(data, project):
     city = (data.get("city") or "").strip()
     state = (data.get("state") or "Delhi NCR").strip()
     site_area = safe_float(data.get("site_area_sqft"), 0, 0)
+    boundary = data.get("boundary_points") if isinstance(data.get("boundary_points"), list) else []
+    clean_boundary = []
+    for point in boundary[:60]:
+        if not isinstance(point, dict):
+            continue
+        clean_boundary.append({
+            "lat": safe_float(point.get("lat"), 0, -90, 90),
+            "lng": safe_float(point.get("lng"), 0, -180, 180),
+        })
+    boundary_area = safe_float(data.get("boundary_area_sqft"), 0, 0)
+    if clean_boundary and not boundary_area:
+        boundary_area = estimate_boundary_area_sqft(clean_boundary)
+    if boundary_area and not site_area:
+        site_area = boundary_area
     far = safe_float(data.get("permissible_far"), 0, 0)
     coverage = safe_float(data.get("ground_coverage_pct"), 0, 0, 100)
     q = "+".join(x for x in [address, city, state] if x).replace(" ", "+")
@@ -267,14 +317,98 @@ def normalize_parcel(data, project):
         "plot_number": (data.get("plot_number") or "").strip(),
         "khasra_number": (data.get("khasra_number") or "").strip(),
         "rera_number": (data.get("rera_number") or "").strip(),
+        "authority": (data.get("authority") or "").strip(),
+        "latitude": safe_float(data.get("latitude"), 0, -90, 90),
+        "longitude": safe_float(data.get("longitude"), 0, -180, 180),
         "site_area_sqft": site_area,
+        "boundary_area_sqft": boundary_area,
+        "boundary_points": clean_boundary,
         "permissible_far": far,
         "ground_coverage_pct": coverage,
         "land_use": (data.get("land_use") or "Residential").strip(),
         "gis_reference": (data.get("gis_reference") or "").strip(),
+        "gis_portal": (data.get("gis_portal") or "").strip(),
+        "rera_portal": (data.get("rera_portal") or "").strip(),
+        "verification_status": data.get("verification_status") or "self_entered",
         "map_url": data.get("map_url") or (f"https://www.google.com/maps/search/?api=1&query={q}" if q else ""),
         "notes": (data.get("notes") or "").strip(),
     }
+
+def estimate_boundary_area_sqft(points):
+    if len(points) < 3:
+        return 0
+    lat0 = sum(p["lat"] for p in points) / len(points)
+    meters = []
+    for p in points:
+        x = p["lng"] * 111320 * max(0.1, abs(math.cos(math.radians(lat0))))
+        y = p["lat"] * 110540
+        meters.append((x, y))
+    area = 0
+    for i, (x1, y1) in enumerate(meters):
+        x2, y2 = meters[(i + 1) % len(meters)]
+        area += x1 * y2 - x2 * y1
+    return round(abs(area) * 0.5 * 10.7639, 2)
+
+def base_rate_rows():
+    rows = []
+    for category in ("materials", "labour"):
+        for item in RATE_LIBRARY.get(category, []):
+            rows.append({
+                "id": item.get("id") or uid(),
+                "category": category,
+                "item": item["item"],
+                "unit": item["unit"],
+                "rate": float(item["rate"]),
+                "source": item.get("source") or "Seed",
+                "city": item.get("city") or "Delhi NCR",
+            })
+    estimate_seed = [
+        ("boq", "Mobilization, barricading and temporary site office", "sqft BUA", 28),
+        ("boq", "Site supervision, safety and statutory coordination", "sqft BUA", 34),
+        ("boq", "Survey, setting out and documentation", "sqft BUA", 16),
+        ("boq", "Bulk excavation in ordinary soil", "cft", 42),
+        ("boq", "Backfilling, compaction and disposal lead", "cft", 38),
+        ("boq", "Anti-termite treatment below plinth", "sqft", 18),
+        ("boq", "PCC 1:4:8 below foundations", "cum", 6900),
+        ("boq", "Centering, shuttering and staging", "sqft", 115),
+        ("boq", "Internal partition masonry", "sqft", 112),
+        ("boq", "Lintel, sill and minor RCC bands", "sqft", 165),
+        ("boq", "Aluminium/uPVC windows with glazing", "sqft", 520),
+        ("boq", "Internal plaster and putty base", "sqft", 42),
+        ("boq", "Internal painting, primer and finish coats", "sqft", 36),
+        ("boq", "External plaster and waterproof putty", "sqft", 68),
+        ("boq", "Weatherproof exterior paint", "sqft", 48),
+    ]
+    for category, name, unit, rate in estimate_seed:
+        rows.append({"id": uid(), "category": category, "item": name, "unit": unit, "rate": rate, "source": "CPWD/DSR benchmark seed", "city": "Delhi NCR"})
+    return rows
+
+def seed_rate_items(db):
+    if db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()["c"]:
+        return
+    for item in base_rate_rows():
+        db.execute(
+            "INSERT OR IGNORE INTO rate_items (id, category, item, unit, rate, source, city, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (item["id"], item["category"], item["item"], item["unit"], item["rate"], item["source"], item["city"], now())
+        )
+
+def rate_items_by_category():
+    rows = get_db().execute("SELECT id, category, item, unit, rate, source, city, updated_at FROM rate_items ORDER BY category, item").fetchall()
+    grouped = {"materials": [], "labour": [], "boq": []}
+    for row in rows:
+        item = dict(row)
+        item["rate"] = float(item["rate"])
+        grouped.setdefault(item["category"], []).append(item)
+    return grouped
+
+def rate_lookup_map():
+    try:
+        return {row["item"]: float(row["rate"]) for row in get_db().execute("SELECT item, rate FROM rate_items").fetchall()}
+    except Exception:
+        rates = {}
+        for item in base_rate_rows():
+            rates[item["item"]] = float(item["rate"])
+        return rates
 
 @app.route("/", methods=["GET"])
 def home():
@@ -286,9 +420,14 @@ def health():
 
 @app.route("/api/rates/library", methods=["GET"])
 def rates_library():
-    library = copy.deepcopy(RATE_LIBRARY)
+    grouped = rate_items_by_category()
+    library = {
+        "materials": grouped.get("materials", []),
+        "labour": grouped.get("labour", []),
+        "boq": grouped.get("boq", []),
+    }
     library["spec_options"] = SPEC_FACTORS
-    library["note"] = "Seed rate library for MVP scenario planning. Replace with verified supplier/labour quotes before commercial use."
+    library["note"] = "Database-backed Delhi NCR seed rate library. Admin can edit these rates; replace with verified supplier/labour quotes before commercial use."
     return jsonify({"success": True, "library": library})
 
 @app.route("/api/auth/register", methods=["POST"])
@@ -507,12 +646,12 @@ def analyze_project(project_id):
     if not row["file_data"]:
         return jsonify({"success": False, "message": "Upload a drawing before generating an estimate."}), 400
 
-    analysis = analyze_drawing_with_ai(row)
-    estimate = calculate_estimate(analysis)
     parcel = parse_json_field(row, "parcel_data", {})
+    analysis = analyze_drawing_with_ai(row)
     sheets = default_sheet_intelligence(analysis)
     regions = default_regions(analysis)
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    estimate = calculate_estimate(analysis, takeoffs)
 
     db.execute(
         "UPDATE projects SET analysis = ?, estimate = ?, drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
@@ -534,10 +673,10 @@ def update_project_analysis(project_id):
     analysis = normalize_analysis(data, row["name"])
     analysis["ai_source"] = data.get("ai_source") or "user_reviewed"
     analysis["notes"] = data.get("notes") or "User-reviewed extraction values."
-    estimate = calculate_estimate(analysis)
     parcel = parse_json_field(row, "parcel_data", {})
     regions = parse_json_field(row, "drawing_regions", default_regions(analysis))
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    estimate = calculate_estimate(analysis, takeoffs)
 
     db.execute(
         "UPDATE projects SET analysis = ?, estimate = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
@@ -561,12 +700,13 @@ def generate_drawing_intelligence(project_id):
     sheets = default_sheet_intelligence(analysis)
     regions = default_regions(analysis)
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    estimate = calculate_estimate(analysis, takeoffs)
     db.execute(
-        "UPDATE projects SET drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, updated_at = ? WHERE id = ?",
-        (json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
+        "UPDATE projects SET drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, estimate = ?, updated_at = ? WHERE id = ?",
+        (json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), json.dumps(estimate), now(), project_id)
     )
     db.commit()
-    return jsonify({"success": True, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
+    return jsonify({"success": True, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs, "estimate": estimate})
 
 @app.route("/api/projects/<project_id>/drawing-sheets", methods=["PUT"])
 @require_auth
@@ -585,8 +725,15 @@ def update_drawing_sheets(project_id):
             "sheet_title": sheet.get("sheet_title") or f"Sheet {i + 1}",
             "floor_name": sheet.get("floor_name") or "",
             "scale": sheet.get("scale") or "",
+            "scale_pixels": safe_float(sheet.get("scale_pixels"), 0, 0),
+            "scale_real_ft": safe_float(sheet.get("scale_real_ft"), 0, 0),
+            "floor_height_ft": safe_float(sheet.get("floor_height_ft"), 0, 0),
+            "floor_height_markers": sheet.get("floor_height_markers") if isinstance(sheet.get("floor_height_markers"), list) else [],
+            "thumbnail_label": sheet.get("thumbnail_label") or f"Page {safe_int(sheet.get('page'), i + 1, 1)}",
             "north_direction": sheet.get("north_direction") or "",
             "annotations": sheet.get("annotations") or "",
+            "detected_labels": sheet.get("detected_labels") if isinstance(sheet.get("detected_labels"), list) else [],
+            "missing_fields": sheet.get("missing_fields") if isinstance(sheet.get("missing_fields"), list) else [],
             "confidence": sheet.get("confidence") or "medium",
         })
     db.execute("UPDATE projects SET drawing_sheets = ?, updated_at = ? WHERE id = ?", (json.dumps(clean), now(), project_id))
@@ -615,13 +762,18 @@ def update_drawing_regions(project_id):
             "w": safe_float(region.get("w"), 20, 1, 100),
             "h": safe_float(region.get("h"), 20, 1, 100),
             "quantity_sqft": safe_float(region.get("quantity_sqft"), 0, 0),
+            "length_ft": safe_float(region.get("length_ft"), 0, 0),
+            "width_ft": safe_float(region.get("width_ft"), 0, 0),
+            "height_ft": safe_float(region.get("height_ft"), 0, 0),
+            "material": region.get("material") or "",
             "quantity_hint": region.get("quantity_hint") or "",
             "confidence": region.get("confidence") or "medium",
         })
     takeoffs = calculate_takeoffs(analysis, clean, parcel)
-    db.execute("UPDATE projects SET drawing_regions = ?, takeoffs = ?, updated_at = ? WHERE id = ?", (json.dumps(clean), json.dumps(takeoffs), now(), project_id))
+    estimate = calculate_estimate(analysis, takeoffs)
+    db.execute("UPDATE projects SET drawing_regions = ?, takeoffs = ?, estimate = ?, updated_at = ? WHERE id = ?", (json.dumps(clean), json.dumps(takeoffs), json.dumps(estimate), now(), project_id))
     db.commit()
-    return jsonify({"success": True, "drawing_regions": clean, "takeoffs": takeoffs})
+    return jsonify({"success": True, "drawing_regions": clean, "takeoffs": takeoffs, "estimate": estimate})
 
 @app.route("/api/projects/<project_id>/takeoffs", methods=["POST", "PUT"])
 @require_auth
@@ -637,9 +789,11 @@ def project_takeoffs(project_id):
         parcel = parse_json_field(row, "parcel_data", {})
         regions = parse_json_field(row, "drawing_regions", default_regions(analysis))
         takeoffs = calculate_takeoffs(analysis, regions, parcel)
-    db.execute("UPDATE projects SET takeoffs = ?, updated_at = ? WHERE id = ?", (json.dumps(takeoffs), now(), project_id))
+    analysis = json.loads(row["analysis"]) if row["analysis"] else fallback_analysis(row["name"], "No analysis found.")
+    estimate = calculate_estimate(analysis, takeoffs)
+    db.execute("UPDATE projects SET takeoffs = ?, estimate = ?, updated_at = ? WHERE id = ?", (json.dumps(takeoffs), json.dumps(estimate), now(), project_id))
     db.commit()
-    return jsonify({"success": True, "takeoffs": takeoffs})
+    return jsonify({"success": True, "takeoffs": takeoffs, "estimate": estimate})
 
 def fallback_analysis(project_name, reason):
     return {
@@ -669,6 +823,31 @@ def fallback_analysis(project_name, reason):
     }
 
 def default_sheet_intelligence(analysis):
+    if isinstance(analysis.get("drawing_sheets"), list) and analysis["drawing_sheets"]:
+        sheets = []
+        for i, sheet in enumerate(analysis["drawing_sheets"][:24]):
+            if not isinstance(sheet, dict):
+                continue
+            sheets.append({
+                "id": sheet.get("id") or uid(),
+                "page": safe_int(sheet.get("page"), i + 1, 1),
+                "sheet_type": sheet.get("sheet_type") or "floor_plan",
+                "sheet_title": sheet.get("sheet_title") or sheet.get("title") or f"Sheet {i + 1}",
+                "floor_name": sheet.get("floor_name") or "",
+                "scale": sheet.get("scale") or "Not detected",
+                "scale_pixels": safe_float(sheet.get("scale_pixels"), 0, 0),
+                "scale_real_ft": safe_float(sheet.get("scale_real_ft"), 0, 0),
+                "floor_height_ft": safe_float(sheet.get("floor_height_ft"), 0, 0),
+                "floor_height_markers": sheet.get("floor_height_markers") if isinstance(sheet.get("floor_height_markers"), list) else [],
+                "thumbnail_label": sheet.get("thumbnail_label") or f"Page {safe_int(sheet.get('page'), i + 1, 1)}",
+                "north_direction": sheet.get("north_direction") or sheet.get("compass") or "Not detected",
+                "annotations": sheet.get("annotations") or sheet.get("notes") or "",
+                "detected_labels": sheet.get("detected_labels") if isinstance(sheet.get("detected_labels"), list) else [],
+                "missing_fields": sheet.get("missing_fields") if isinstance(sheet.get("missing_fields"), list) else [],
+                "confidence": sheet.get("confidence") or "medium",
+            })
+        if sheets:
+            return sheets
     floors = safe_int(analysis.get("total_floors"), 12, 1)
     sheets = [
         {
@@ -678,8 +857,15 @@ def default_sheet_intelligence(analysis):
             "sheet_title": "Site Plan",
             "floor_name": "Site",
             "scale": "1:500",
+            "scale_pixels": 0,
+            "scale_real_ft": 0,
+            "floor_height_ft": 0,
+            "floor_height_markers": [],
+            "thumbnail_label": "Site",
             "north_direction": "Not verified",
             "annotations": "Verify plot boundary, road width and setbacks.",
+            "detected_labels": ["plot boundary", "setbacks", "approach road"],
+            "missing_fields": ["khasra/plot verification", "authority zoning"],
             "confidence": "medium",
         },
         {
@@ -689,8 +875,15 @@ def default_sheet_intelligence(analysis):
             "sheet_title": "Typical Floor Plan",
             "floor_name": "Typical Floor",
             "scale": "1:100",
+            "scale_pixels": 0,
+            "scale_real_ft": 0,
+            "floor_height_ft": 10,
+            "floor_height_markers": [],
+            "thumbnail_label": "Plan",
             "north_direction": "Not verified",
             "annotations": "AI assumes typical floor repeats across tower.",
+            "detected_labels": ["unit zones", "core", "rooms"],
+            "missing_fields": ["room dimensions", "exact CAD scale"],
             "confidence": "medium",
         },
         {
@@ -700,19 +893,50 @@ def default_sheet_intelligence(analysis):
             "sheet_title": "Front Elevation",
             "floor_name": f"G+{max(floors - 1, 0)} Elevation",
             "scale": "1:100",
+            "scale_pixels": 0,
+            "scale_real_ft": 0,
+            "floor_height_ft": 10,
+            "floor_height_markers": [{"label": "Typical floor height", "height_ft": 10}],
+            "thumbnail_label": "Elevation",
             "north_direction": "Elevation view",
             "annotations": "Facade zones and glazing areas are approximate until manually verified.",
+            "detected_labels": ["facade zone", "glazing band", "floor markers"],
+            "missing_fields": ["floor height markers", "material tags"],
             "confidence": "medium",
         },
     ]
     return sheets
 
 def default_regions(analysis):
+    if isinstance(analysis.get("drawing_regions"), list) and analysis["drawing_regions"]:
+        regions = []
+        for region in analysis["drawing_regions"][:80]:
+            if not isinstance(region, dict):
+                continue
+            regions.append({
+                "id": region.get("id") or uid(),
+                "sheet_page": safe_int(region.get("sheet_page") or region.get("page"), 1, 1),
+                "region_type": region.get("region_type") or "room_zone",
+                "label": region.get("label") or "Region",
+                "x": safe_float(region.get("x"), 10, 0, 100),
+                "y": safe_float(region.get("y"), 10, 0, 100),
+                "w": safe_float(region.get("w"), 20, 1, 100),
+                "h": safe_float(region.get("h"), 20, 1, 100),
+                "quantity_sqft": safe_float(region.get("quantity_sqft"), 0, 0),
+                "length_ft": safe_float(region.get("length_ft"), 0, 0),
+                "width_ft": safe_float(region.get("width_ft"), 0, 0),
+                "height_ft": safe_float(region.get("height_ft"), 0, 0),
+                "material": region.get("material") or "",
+                "quantity_hint": region.get("quantity_hint") or "",
+                "confidence": region.get("confidence") or "medium",
+            })
+        if regions:
+            return regions
     return [
-        {"id": uid(), "sheet_page": 2, "region_type": "room_zone", "label": "Apartment/unit zones", "x": 8, "y": 14, "w": 38, "h": 34, "quantity_hint": "flooring/plaster basis", "confidence": "medium"},
-        {"id": uid(), "sheet_page": 2, "region_type": "core", "label": "Lift and staircase core", "x": 52, "y": 18, "w": 18, "h": 28, "quantity_hint": "vertical circulation", "confidence": "medium"},
-        {"id": uid(), "sheet_page": 3, "region_type": "facade_zone", "label": "Main facade zone", "x": 10, "y": 12, "w": 72, "h": 58, "quantity_hint": "facade/plaster/paint", "confidence": "medium"},
-        {"id": uid(), "sheet_page": 3, "region_type": "opening", "label": "Window/glazing band", "x": 18, "y": 24, "w": 56, "h": 18, "quantity_hint": "window/glazing", "confidence": "low"},
+        {"id": uid(), "sheet_page": 2, "region_type": "room_zone", "label": "Apartment/unit zones", "x": 8, "y": 14, "w": 38, "h": 34, "quantity_sqft": 0, "length_ft": 0, "width_ft": 0, "height_ft": 0, "material": "flooring", "quantity_hint": "flooring/plaster basis", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 2, "region_type": "core", "label": "Lift and staircase core", "x": 52, "y": 18, "w": 18, "h": 28, "quantity_sqft": 0, "length_ft": 0, "width_ft": 0, "height_ft": 0, "material": "rcc_core", "quantity_hint": "vertical circulation", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 3, "region_type": "facade_zone", "label": "Main facade zone", "x": 10, "y": 12, "w": 72, "h": 58, "quantity_sqft": 0, "length_ft": 0, "width_ft": 0, "height_ft": 0, "material": "painted_plaster", "quantity_hint": "facade/plaster/paint", "confidence": "medium"},
+        {"id": uid(), "sheet_page": 3, "region_type": "opening", "label": "Window/glazing band", "x": 18, "y": 24, "w": 56, "h": 18, "quantity_sqft": 0, "length_ft": 0, "width_ft": 0, "height_ft": 0, "material": "glazing", "quantity_hint": "window/glazing", "confidence": "low"},
     ]
 
 def calculate_takeoffs(analysis, regions=None, parcel=None):
@@ -730,6 +954,14 @@ def calculate_takeoffs(analysis, regions=None, parcel=None):
             if region.get("region_type") not in wanted:
                 continue
             area = safe_float(region.get("quantity_sqft"), 0, 0)
+            if not area:
+                length = safe_float(region.get("length_ft"), 0, 0)
+                width = safe_float(region.get("width_ft"), 0, 0)
+                height = safe_float(region.get("height_ft"), 0, 0)
+                if region.get("region_type") in ["wall_zone", "facade_zone", "opening"] and length and height:
+                    area = length * height
+                elif length and width:
+                    area = length * width
             if not area:
                 match = re.search(r"(\d+(?:\.\d+)?)", str(region.get("quantity_hint") or "").replace(",", ""))
                 area = safe_float(match.group(1), 0, 0) if match else 0
@@ -760,12 +992,46 @@ def calculate_takeoffs(analysis, regions=None, parcel=None):
             "basement_area_sqft": round((bua / floors) * basement, 2),
             "site_development_area_sqft": round(max(site_area - (bua / floors), 0), 2) if site_area else 0,
         },
+        "boq_links": {
+            "slab_area_sqft": ["04_structure"],
+            "wall_area_sqft": ["05_masonry", "07_finishes"],
+            "facade_area_sqft": ["08_facade"],
+            "window_glazing_area_sqft": ["06_doors_windows"],
+            "flooring_area_sqft": ["07_finishes"],
+            "plaster_paint_area_sqft": ["07_finishes", "08_facade"],
+            "mep_allowance_sqft": ["10_plumbing", "11_electrical", "12_fire", "13_hvac"],
+            "site_development_area_sqft": ["15_external"],
+        },
+        "material_schedule": summarize_region_materials(regions),
+        "model_reconstruction": {
+            "method": "Associates editable floor-plan and elevation overlays into an approximate massing model.",
+            "status": "mvp_editable_not_cad_exact",
+            "floors": floors,
+            "basement_levels": basement,
+            "facade_regions": len([r for r in regions if r.get("region_type") == "facade_zone"]),
+            "opening_regions": len([r for r in regions if r.get("region_type") == "opening"]),
+        },
         "assumptions": [
             "Exact CAD geometry is not available in MVP; quantities are derived from extracted areas and editable regions.",
             "Facade and glazing quantities improve when elevation regions are verified.",
             "MEP is treated as a rough sqft allowance until MEP drawings are parsed.",
         ],
     }
+
+def summarize_region_materials(regions):
+    summary = {}
+    for region in regions or []:
+        material = (region.get("material") or region.get("region_type") or "unclassified").strip()
+        area = safe_float(region.get("quantity_sqft"), 0, 0)
+        if not area:
+            length = safe_float(region.get("length_ft"), 0, 0)
+            width = safe_float(region.get("width_ft"), 0, 0)
+            height = safe_float(region.get("height_ft"), 0, 0)
+            area = length * height if height and length else length * width
+        summary.setdefault(material, {"area_sqft": 0, "regions": 0})
+        summary[material]["area_sqft"] = round(summary[material]["area_sqft"] + area, 2)
+        summary[material]["regions"] += 1
+    return summary
 
 def parse_ai_json(text):
     text = (text or "").strip()
@@ -809,7 +1075,7 @@ def normalize_analysis(data, project_name):
         })
 
     review = data.get("drawing_review") if isinstance(data.get("drawing_review"), dict) else {}
-    return {
+    result = {
         "building_type": str(data.get("building_type") or "Residential Tower"),
         "total_floors": positive_int(data.get("total_floors"), 15),
         "total_units": total_units,
@@ -831,6 +1097,13 @@ def normalize_analysis(data, project_name):
         },
         "notes": str(data.get("notes") or f"AI extraction generated for {project_name}.")
     }
+    if isinstance(data.get("drawing_sheets"), list):
+        result["drawing_sheets"] = data["drawing_sheets"]
+    if isinstance(data.get("drawing_regions"), list):
+        result["drawing_regions"] = data["drawing_regions"]
+    if isinstance(data.get("takeoff_hints"), dict):
+        result["takeoff_hints"] = data["takeoff_hints"]
+    return result
 
 def analyze_drawing_with_ai(project):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
@@ -850,11 +1123,23 @@ You are an Indian construction quantity-surveying assistant for Nirman.AI.
 Read the uploaded architectural drawing and return ONLY valid JSON with these keys:
 building_type, total_floors, total_units, unit_types, total_built_up_area_sqft,
 total_carpet_area_sqft, plot_area_sqft, structure_type, basement_levels,
-parking_spaces, lift_count, confidence, drawing_review, notes.
+parking_spaces, lift_count, confidence, drawing_review, drawing_sheets,
+drawing_regions, takeoff_hints, notes.
 
 Rules:
 - unit_types must be an array of objects with type, count, carpet_area_sqft.
 - drawing_review must be an object with summary, risks, missing_information, assumptions.
+- drawing_sheets must be an array. For each sheet include page, sheet_type
+  (site_plan, floor_plan, elevation, section, schedule, detail), sheet_title,
+  floor_name, scale, scale_pixels, scale_real_ft, floor_height_ft,
+  floor_height_markers, north_direction, detected_labels, missing_fields,
+  thumbnail_label, annotations, confidence.
+- drawing_regions must be an array of editable overlay suggestions. For each region include
+  sheet_page, region_type (room_zone, wall_zone, slab_zone, facade_zone, opening, core, mep_zone),
+  label, x, y, w, h, quantity_sqft, length_ft, width_ft, height_ft, material,
+  quantity_hint, confidence. Coordinates are percentages 0-100.
+- takeoff_hints may include flooring_area_sqft, facade_area_sqft, window_glazing_area_sqft,
+  wall_area_sqft, slab_area_sqft, plaster_paint_area_sqft if visible or inferable.
 - Use numeric values without commas or units.
 - If a value is not visible, infer conservatively from the drawing context and explain it in notes.
 - confidence must be high, medium, or low.
@@ -892,13 +1177,16 @@ Rules:
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
         return fallback_analysis(project["name"], f"Claude analysis failed: {exc}")
 
-def calculate_estimate(analysis):
+def calculate_estimate(analysis, takeoffs=None):
     bua = analysis.get("total_built_up_area_sqft", 75000)
     units = analysis.get("total_units", 60)
     lifts = analysis.get("lift_count", 3)
     parking = analysis.get("parking_spaces", 60)
+    q = (takeoffs or {}).get("quantities") or {}
+    rates = rate_lookup_map()
 
     def item(desc, qty, unit, rate, gst_rate=12):
+        rate = rates.get(ESTIMATE_RATE_ALIASES.get(desc, desc), rate)
         qty = round(float(qty), 2)
         rate = round(float(rate), 2)
         return {"desc": desc, "qty": qty, "unit": unit, "rate": rate, "gst_rate": gst_rate, "amount": int(qty * rate)}
@@ -931,7 +1219,7 @@ def calculate_estimate(analysis):
         "04_structure": {
             "name": "Superstructure RCC Frame",
             "items": [
-                item("RCC columns, beams and slabs", bua * 0.105, "cum", 8400),
+                item("RCC columns, beams and slabs", (q.get("slab_area_sqft") or bua) * 0.105, "cum", 8400),
                 item("TMT reinforcement Fe500D", bua * 8.5, "kg", 82),
                 item("Centering, shuttering and staging", bua * 1.08, "sqft", 115),
             ],
@@ -939,8 +1227,8 @@ def calculate_estimate(analysis):
         "05_masonry": {
             "name": "Masonry and Blockwork",
             "items": [
-                item("AAC/block masonry external walls", bua * 0.32, "sqft", 145),
-                item("Internal partition masonry", bua * 0.46, "sqft", 112),
+                item("AAC/block masonry external walls", q.get("wall_area_sqft") or bua * 0.32, "sqft", 145),
+                item("Internal partition masonry", (q.get("wall_area_sqft") or bua * 0.46) * 0.72, "sqft", 112),
                 item("Lintel, sill and minor RCC bands", bua * 0.05, "sqft", 165),
             ],
         },
@@ -948,23 +1236,23 @@ def calculate_estimate(analysis):
             "name": "Doors, Windows and Glazing",
             "items": [
                 item("Flush doors with hardware", units * 8, "each", 11800),
-                item("Aluminium/uPVC windows with glazing", bua * 0.105, "sqft", 520),
+                item("Aluminium/uPVC windows with glazing", q.get("window_glazing_area_sqft") or bua * 0.105, "sqft", 520),
                 item("Common area fire-rated and service doors", units * 1.2, "each", 18500),
             ],
         },
         "07_finishes": {
             "name": "Interior Finishes",
             "items": [
-                item("Internal plaster and putty base", bua * 1.8, "sqft", 42),
-                item("Vitrified tile flooring with skirting", bua * 0.72, "sqft", 165),
-                item("Internal painting, primer and finish coats", bua * 1.75, "sqft", 36),
+                item("Internal plaster and putty base", q.get("plaster_paint_area_sqft") or bua * 1.8, "sqft", 42),
+                item("Vitrified tile flooring with skirting", q.get("flooring_area_sqft") or bua * 0.72, "sqft", 165),
+                item("Internal painting, primer and finish coats", q.get("plaster_paint_area_sqft") or bua * 1.75, "sqft", 36),
             ],
         },
         "08_facade": {
             "name": "Exterior Finishes and Facade",
             "items": [
-                item("External plaster and waterproof putty", bua * 0.38, "sqft", 68),
-                item("Weatherproof exterior paint", bua * 0.38, "sqft", 48),
+                item("External plaster and waterproof putty", q.get("facade_area_sqft") or bua * 0.38, "sqft", 68),
+                item("Weatherproof exterior paint", q.get("facade_area_sqft") or bua * 0.38, "sqft", 48),
                 item("Balcony railing and facade features", units * 70, "rft", 950),
             ],
         },
@@ -1019,7 +1307,7 @@ def calculate_estimate(analysis):
         "15_external": {
             "name": "External Development and Parking",
             "items": [
-                item("Driveways, paving and hardscape", bua * 0.18, "sqft", 145),
+                item("Driveways, paving and hardscape", q.get("site_development_area_sqft") or bua * 0.18, "sqft", 145),
                 item("Boundary wall, gate and landscape works", bua * 0.09, "sqft", 165),
                 item("Parking marking, EV provisions and signage", parking, "bay", 42000),
             ],
@@ -1369,6 +1657,12 @@ def update_project_estimate(project_id):
 
 def project_report_payload(row):
     project = public_project(row)
+    analysis = project.get("analysis") or {}
+    estimate = project.get("estimate") or {}
+    parcel = project.get("parcel_data") or {}
+    takeoffs = project.get("takeoffs") or {}
+    quantities = takeoffs.get("quantities") or {}
+    review = analysis.get("drawing_review") or {}
     scenarios = get_db().execute(
         "SELECT id, name, options, result, created_at FROM scenarios WHERE project_id = ? AND user_id = ? ORDER BY created_at DESC",
         (row["id"], row["user_id"])
@@ -1379,9 +1673,80 @@ def project_report_payload(row):
         item["options"] = json.loads(item["options"])
         item["result"] = json.loads(item["result"])
         parsed.append(item)
+    bua = safe_float(analysis.get("total_built_up_area_sqft"), 0, 0)
+    carpet = safe_float(analysis.get("total_carpet_area_sqft"), 0, 0)
+    site_area = safe_float(parcel.get("site_area_sqft"), analysis.get("plot_area_sqft", 0), 0)
+    total_cost = safe_float(estimate.get("total_with_gst"), 0, 0)
+    subtotal = safe_float(estimate.get("subtotal"), 0, 0)
+    gst = estimate.get("gst_breakup") or {}
+    efficiency = round((carpet / bua) * 100, 2) if bua else 0
+    far_used = round(bua / site_area, 2) if site_area else 0
+    contingency = 0
+    overhead = (estimate.get("divisions") or {}).get("16_overheads") or {}
+    for item in overhead.get("items", []):
+        if "contingency" in (item.get("desc") or "").lower():
+            contingency += safe_float(item.get("amount"), 0, 0)
+    metrics = {
+        "gross_construction_area_sqft": bua,
+        "carpet_area_sqft": carpet,
+        "efficiency_pct": efficiency,
+        "site_area_sqft": site_area,
+        "far_used": far_used,
+        "permissible_far": parcel.get("permissible_far") or 0,
+        "total_cost_with_gst": total_cost,
+        "subtotal": subtotal,
+        "gst_total": gst.get("total_gst", estimate.get("gst_12pct", 0)),
+        "cgst_6pct": gst.get("cgst_6pct", 0),
+        "sgst_6pct": gst.get("sgst_6pct", 0),
+        "cost_per_sqft": estimate.get("cost_per_sqft", 0),
+        "contingency": int(contingency),
+        "facade_area_sqft": quantities.get("facade_area_sqft", 0),
+        "glazing_area_sqft": quantities.get("window_glazing_area_sqft", 0),
+        "flooring_area_sqft": quantities.get("flooring_area_sqft", 0),
+        "parking_spaces": analysis.get("parking_spaces", 0),
+        "floors": analysis.get("total_floors", 0),
+        "units": analysis.get("total_units", 0),
+    }
+    sections = {
+        "project_overview": {
+            "name": project.get("name"),
+            "address": project.get("address"),
+            "building_type": analysis.get("building_type"),
+            "structure_type": analysis.get("structure_type"),
+            "status": project.get("status"),
+        },
+        "land_rera": {
+            "authority": parcel.get("authority"),
+            "rera_number": parcel.get("rera_number"),
+            "plot_number": parcel.get("plot_number"),
+            "khasra_number": parcel.get("khasra_number"),
+            "land_use": parcel.get("land_use"),
+            "gis_reference": parcel.get("gis_reference"),
+            "verification_status": parcel.get("verification_status"),
+            "boundary_area_sqft": parcel.get("boundary_area_sqft"),
+        },
+        "unit_mix": analysis.get("unit_types") or [],
+        "takeoffs": quantities,
+        "material_schedule": takeoffs.get("material_schedule") or {},
+        "drawing_intelligence": {
+            "sheets": project.get("drawing_sheets") or [],
+            "regions": project.get("drawing_regions") or [],
+            "model_reconstruction": takeoffs.get("model_reconstruction") or {},
+        },
+        "cost": {
+            "divisions": estimate.get("divisions") or {},
+            "gst_breakup": gst,
+            "rates_source": estimate.get("rates_source"),
+        },
+        "risks": review.get("risks") or [],
+        "missing_information": review.get("missing_information") or [],
+        "assumptions": review.get("assumptions") or [],
+    }
     return {
         "generated_at": now(),
         "project": project,
+        "metrics": metrics,
+        "sections": sections,
         "scenarios": parsed,
         "brand": "Nirman.AI",
     }
@@ -1427,6 +1792,63 @@ def project_report_csv(project_id):
         output.getvalue(),
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.csv"}
+    )
+
+@app.route("/api/projects/<project_id>/investor-report.csv", methods=["GET"])
+@require_auth
+def project_investor_report_csv(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["estimate"]:
+        return jsonify({"success": False, "message": "Generate an estimate before exporting a report."}), 400
+    report = project_report_payload(row)
+    project = report["project"]
+    metrics = report["metrics"]
+    sections = report["sections"]
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Nirman.AI Bank / Investor Report"])
+    writer.writerow(["Generated At", report["generated_at"]])
+    writer.writerow([])
+    writer.writerow(["Project Overview"])
+    for key, value in sections["project_overview"].items():
+        writer.writerow([key, value])
+    writer.writerow([])
+    writer.writerow(["Land / RERA Summary"])
+    for key, value in sections["land_rera"].items():
+        writer.writerow([key, value])
+    writer.writerow([])
+    writer.writerow(["Key Metrics"])
+    for key, value in metrics.items():
+        writer.writerow([key, value])
+    writer.writerow([])
+    writer.writerow(["Unit Mix"])
+    writer.writerow(["type", "count", "carpet_area_sqft"])
+    for unit in sections["unit_mix"]:
+        writer.writerow([unit.get("type"), unit.get("count"), unit.get("carpet_area_sqft")])
+    writer.writerow([])
+    writer.writerow(["Takeoff Quantities"])
+    for key, value in sections["takeoffs"].items():
+        writer.writerow([key, value, "sqft"])
+    writer.writerow([])
+    writer.writerow(["Risks"])
+    for item in sections["risks"]:
+        writer.writerow([item])
+    writer.writerow([])
+    writer.writerow(["Missing Information"])
+    for item in sections["missing_information"]:
+        writer.writerow([item])
+    writer.writerow([])
+    writer.writerow(["Saved Scenarios"])
+    writer.writerow(["name", "base_total", "revised_total", "delta", "delta_percent"])
+    for scenario in report["scenarios"]:
+        result = scenario.get("result") or {}
+        writer.writerow([scenario.get("name"), result.get("base_total"), result.get("revised_total"), result.get("delta"), result.get("delta_percent")])
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=nirman_investor_report_{project_id}.csv"}
     )
 
 @app.route("/api/projects/<project_id>/takeoffs.csv", methods=["GET"])
@@ -1525,6 +1947,7 @@ def admin_summary():
     waitlist = db.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
     uploaded = db.execute("SELECT COUNT(*) FROM projects WHERE status IN ('uploaded', 'analyzed')").fetchone()[0]
     analyzed = db.execute("SELECT COUNT(*) FROM projects WHERE status = 'analyzed'").fetchone()[0]
+    rates = db.execute("SELECT COUNT(*) FROM rate_items").fetchone()[0]
 
     latest_users = db.execute(
         "SELECT id, name, email, company, role, city, created_at FROM users ORDER BY created_at DESC LIMIT 20"
@@ -1551,6 +1974,7 @@ def admin_summary():
             "waitlist": waitlist,
             "uploaded_drawings": uploaded,
             "analyzed_projects": analyzed,
+            "rate_items": rates,
         },
         "users": [dict(r) for r in latest_users],
         "projects": [dict(r) for r in latest_projects],
@@ -1623,6 +2047,50 @@ def admin_waitlist():
         "SELECT id, name, email, phone, role, city, created_at FROM waitlist ORDER BY created_at DESC"
     ).fetchall()
     return jsonify({"success": True, "total": len(rows), "waitlist": [dict(r) for r in rows]})
+
+@app.route("/api/admin/rates", methods=["GET", "PUT"])
+def admin_rates():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    db = get_db()
+    if request.method == "GET":
+        return jsonify({"success": True, "rates": rate_items_by_category()})
+
+    body = request.get_json() or {}
+    rates = body.get("rates") or []
+    if not isinstance(rates, list):
+        return jsonify({"success": False, "message": "Rates must be a list."}), 400
+
+    saved = []
+    for raw in rates[:300]:
+        if not isinstance(raw, dict):
+            continue
+        item = (raw.get("item") or "").strip()
+        if not item:
+            continue
+        rate_id = raw.get("id") or uid()
+        category = raw.get("category") if raw.get("category") in ["materials", "labour", "boq"] else "boq"
+        unit = (raw.get("unit") or "unit").strip()
+        rate = safe_float(raw.get("rate"), 0, 0)
+        source = (raw.get("source") or "Admin edited").strip()
+        city = (raw.get("city") or "Delhi NCR").strip()
+        db.execute(
+            """
+            INSERT INTO rate_items (id, category, item, unit, rate, source, city, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(item) DO UPDATE SET
+                category = excluded.category,
+                unit = excluded.unit,
+                rate = excluded.rate,
+                source = excluded.source,
+                city = excluded.city,
+                updated_at = excluded.updated_at
+            """,
+            (rate_id, category, item, unit, rate, source, city, now())
+        )
+        saved.append(item)
+    db.commit()
+    return jsonify({"success": True, "message": f"Saved {len(saved)} rates.", "rates": rate_items_by_category()})
 
 init_db()
 

@@ -39,7 +39,7 @@ h1{font-family:var(--syne);font-size:2rem;letter-spacing:-.01em}
 .field input{width:100%;background:#0a0a0a;border:1px solid var(--border);padding:14px 16px;color:var(--white);outline:none;border-radius:var(--radius)}
 .field input:focus{border-color:var(--accent)}
 .error{margin-top:14px;color:var(--red);font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;text-transform:uppercase}
-.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px}
 .stat{background:var(--surface);padding:24px}
 .stat-num{font-family:var(--syne);font-size:2rem;font-weight:800;line-height:1}
 .stat-label{font-family:var(--mono);font-size:.55rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-top:9px}
@@ -61,6 +61,9 @@ tr:hover td{background:var(--card)}
 .badge{display:inline-block;font-family:var(--mono);font-size:.54rem;letter-spacing:.12em;text-transform:uppercase;padding:5px 9px;border:1px solid var(--border2);color:var(--dim)}
 .badge.analyzed{color:var(--accent);border-color:rgba(126,184,201,.35);background:var(--accent-bg)}
 .badge.uploaded{color:var(--green);border-color:rgba(74,222,128,.28);background:rgba(74,222,128,.08)}
+.rate-input,.rate-select{width:100%;min-width:90px;background:#0a0a0a;border:1px solid var(--border);padding:9px 10px;color:var(--white);outline:none;border-radius:var(--radius)}
+.rate-input:focus,.rate-select:focus{border-color:var(--accent)}
+.rate-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px}
 .empty{padding:48px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase}
 .hidden{display:none}
 @media(max-width:900px){
@@ -110,6 +113,7 @@ tr:hover td{background:var(--card)}
         <button class="tab active" data-tab="users">Users</button>
         <button class="tab" data-tab="projects">Projects</button>
         <button class="tab" data-tab="waitlist">Waitlist</button>
+        <button class="tab" data-tab="rates">Rates</button>
       </div>
 
       <div class="table-tools">
@@ -175,14 +179,16 @@ async function loadAdmin(){
   const res=await fetch(`${API}/api/admin/summary?key=${encodeURIComponent(key)}`);
   const data=await res.json();
   if(!data.success){showError(data.message||"Unauthorized.");setLoggedIn(false);return}
-  const [usersRes,projectsRes,waitlistRes]=await Promise.all([
+  const [usersRes,projectsRes,waitlistRes,ratesRes]=await Promise.all([
     fetch(`${API}/api/admin/users?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
     fetch(`${API}/api/admin/projects?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
     fetch(`${API}/api/admin/waitlist?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/rates?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
   ]);
   if(usersRes?.success)data.users=usersRes.users;
   if(projectsRes?.success)data.projects=projectsRes.projects;
   if(waitlistRes?.success)data.waitlist=waitlistRes.waitlist;
+  if(ratesRes?.success)data.rates=ratesRes.rates;
   localStorage.setItem("nirman_admin_key",key);
   state.data=data;
   els.exportLink.href=`${API}/api/waitlist/export?key=${encodeURIComponent(key)}`;
@@ -200,6 +206,7 @@ function renderStats(){
     ["Waitlist",c.waitlist],
     ["Uploaded",c.uploaded_drawings],
     ["Analyzed",c.analyzed_projects],
+    ["Rates",c.rate_items],
   ];
   els.stats.innerHTML=items.map(([label,value])=>`<div class="stat"><div class="stat-num">${esc(value||0)}</div><div class="stat-label">${esc(label)}</div></div>`).join("");
 }
@@ -245,8 +252,58 @@ function renderTable(){
       {label:"Date",render:r=>fmtDate(r.created_at)},
     ],rows);
   }
+  if(state.tab==="rates"){
+    const grouped=state.data.rates||{};
+    const rows=[...(grouped.materials||[]),...(grouped.labour||[]),...(grouped.boq||[])].filter(matchesSearch);
+    els.tablePanel.innerHTML=`
+      <table><thead><tr>
+        <th>Category</th><th>Item</th><th>Unit</th><th>Rate</th><th>City</th><th>Source</th>
+      </tr></thead><tbody>
+        ${rows.map((r,i)=>`<tr data-rate-row="${i}">
+          <td><select class="rate-select" data-field="category"><option value="materials" ${r.category==="materials"?"selected":""}>materials</option><option value="labour" ${r.category==="labour"?"selected":""}>labour</option><option value="boq" ${r.category==="boq"?"selected":""}>boq</option></select></td>
+          <td><input class="rate-input" data-field="item" value="${esc(r.item)}"/></td>
+          <td><input class="rate-input" data-field="unit" value="${esc(r.unit)}"/></td>
+          <td><input class="rate-input" data-field="rate" type="number" value="${esc(r.rate)}"/></td>
+          <td><input class="rate-input" data-field="city" value="${esc(r.city||"Delhi NCR")}"/></td>
+          <td><input class="rate-input" data-field="source" value="${esc(r.source||"Admin edited")}"/><input type="hidden" data-field="id" value="${esc(r.id)}"/></td>
+        </tr>`).join("")}
+      </tbody></table>
+      <div class="rate-actions">
+        <button class="btn" id="addRateBtn">Add Rate</button>
+        <button class="btn primary" id="saveRatesBtn">Save Rates</button>
+      </div>`;
+    document.getElementById("addRateBtn").addEventListener("click",addRateRow);
+    document.getElementById("saveRatesBtn").addEventListener("click",saveRates);
+  }
 }
 function render(){renderStats();renderTable()}
+
+function collectRateRows(){
+  return Array.from(els.tablePanel.querySelectorAll("tbody tr")).map(row=>{
+    const item={};
+    row.querySelectorAll("[data-field]").forEach(input=>{
+      item[input.dataset.field]=input.type==="number"?Number(input.value):input.value;
+    });
+    return item;
+  });
+}
+function addRateRow(){
+  const grouped=state.data.rates||{};
+  grouped.boq=[...(grouped.boq||[]),{id:"",category:"boq",item:"New rate item",unit:"unit",rate:0,city:"Delhi NCR",source:"Admin edited"}];
+  state.data.rates=grouped;
+  renderTable();
+}
+async function saveRates(){
+  const rates=collectRateRows();
+  const res=await fetch(`${API}/api/admin/rates?key=${encodeURIComponent(state.key)}`,{
+    method:"PUT",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({rates})
+  });
+  const data=await res.json();
+  if(data.success){state.data.rates=data.rates;renderTable()}
+  else showError(data.message||"Could not save rates.");
+}
 
 document.querySelectorAll(".tab").forEach(btn=>{
   btn.addEventListener("click",()=>{

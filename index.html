@@ -430,6 +430,19 @@ a{text-decoration:none;color:inherit}
 
 /* Review, edit and scenario simulator */
 .workflow-stack{display:grid;gap:24px;margin-bottom:40px}
+.intel-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.intel-tile{background:var(--surface);padding:20px;cursor:pointer;min-height:118px}
+.intel-tile:hover{background:var(--card)}
+.intel-value{font-family:var(--syne);font-size:1.45rem;font-weight:800;color:var(--white);line-height:1.1}
+.intel-label{font-family:var(--mono);font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:9px}
+.intel-section{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);overflow:hidden}
+.intel-section-head{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 22px;cursor:pointer}
+.intel-section-title{font-family:var(--syne);font-size:1rem;font-weight:700}
+.intel-section-body{padding:0 22px 22px}
+.kv-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.kv{background:var(--bg);padding:14px}
+.kv-label{font-family:var(--mono);font-size:.5rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer);margin-bottom:6px}
+.kv-value{font-size:.86rem;color:var(--white);line-height:1.35}
 .review-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .review-list{display:grid;gap:10px}
 .review-pill{border:1px solid var(--border);background:var(--bg);padding:10px 12px;font-size:.82rem;color:var(--dim);border-radius:var(--radius)}
@@ -471,11 +484,29 @@ a{text-decoration:none;color:inherit}
 .rate-table th{font-family:var(--mono);font-size:.52rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
 .parcel-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:24px}
 .map-preview{min-height:280px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;border-radius:var(--radius)}
+.parcel-map-frame{width:100%;height:260px;border:1px solid var(--border);background:#050505;margin-bottom:14px;border-radius:var(--radius)}
+.boundary-canvas{position:relative;height:220px;border:1px solid var(--border);background-image:linear-gradient(rgba(126,184,201,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(126,184,201,.08) 1px,transparent 1px);background-size:28px 28px;margin-top:14px;border-radius:var(--radius);overflow:hidden}
+.boundary-point{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent);transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(126,184,201,.14)}
+.boundary-line{position:absolute;height:2px;background:rgba(126,184,201,.55);transform-origin:left center}
+.portal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.thumb-strip{display:flex;gap:10px;overflow:auto;padding:8px 0 12px}
+.page-thumb{min-width:84px;height:72px;border:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border-radius:var(--radius)}
+.page-thumb.active{border-color:var(--accent);background:var(--accent-bg)}
+.thumb-page{font-family:var(--syne);font-weight:800;color:var(--white)}
+.thumb-label{font-family:var(--mono);font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:4px}
 .sheet-table-wrap{overflow:auto;border:1px solid var(--border);background:var(--surface)}
 .drawing-stage{display:grid;grid-template-columns:360px 1fr;gap:24px}
 .sheet-list{display:grid;gap:10px}
 .sheet-chip{border:1px solid var(--border);background:var(--surface);padding:12px;cursor:pointer;border-radius:var(--radius)}
 .sheet-chip.active{border-color:var(--accent);background:var(--accent-bg)}
+.sheet-inspector{border:1px solid var(--border);background:var(--surface);padding:18px;margin-top:14px;border-radius:var(--radius)}
+.sheet-inspector-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}
+.sheet-meta-pill{border:1px solid var(--border);background:var(--bg);padding:10px;border-radius:var(--radius)}
+.sheet-meta-label{font-family:var(--mono);font-size:.5rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer);margin-bottom:5px}
+.sheet-meta-value{font-size:.82rem;color:var(--white)}
+.tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mini-tag{font-family:var(--mono);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--border);padding:5px 8px;border-radius:var(--radius)}
+.region-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
 .drawing-canvas{position:relative;min-height:560px;border:1px solid var(--border);background:#070707;overflow:hidden;border-radius:var(--radius);touch-action:none}
 .drawing-preview{position:absolute;inset:0;width:100%;height:100%;border:0;background:#050505;pointer-events:none}
 .drawing-preview.image{object-fit:contain;padding:18px}
@@ -487,12 +518,13 @@ a{text-decoration:none;color:inherit}
 .region-box.facade_zone{border-color:#fb7185;background:rgba(251,113,133,.12)}
 .region-box.wall,.region-box.wall_zone{border-color:#a78bfa;background:rgba(167,139,250,.12)}
 .region-resize{position:absolute;right:3px;bottom:3px;width:14px;height:14px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;cursor:nwse-resize;opacity:.9}
-.region-editor{display:grid;grid-template-columns:1.2fr .9fr .5fr .8fr .8fr;gap:10px;margin-top:14px}
+.region-editor{display:grid;grid-template-columns:1.1fr .75fr .4fr .6fr .55fr .55fr .55fr .7fr .8fr;gap:10px;margin-top:14px}
 .takeoff-toolbar{display:flex;justify-content:flex-end;gap:12px;margin-top:16px;flex-wrap:wrap}
 .takeoff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
 .takeoff-card{background:var(--surface);padding:20px}
 .takeoff-val{font-family:var(--syne);font-size:1.35rem;font-weight:800;color:var(--accent)}
 .takeoff-label{font-family:var(--mono);font-size:.54rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);margin-top:8px}
+.takeoff-link{font-family:var(--mono);font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin-top:8px}
 .print-report{display:none}
 @media print{
   nav,.sidebar,.detail-actions,.stage-track,.upload-zone,.scenario-shell,.boq-toolbar,.report-actions,.back-btn,.notif,.cta-band,footer,#landing-container{display:none!important}
@@ -529,11 +561,14 @@ a{text-decoration:none;color:inherit}
   .stats-row{grid-template-columns:1fr 1fr}
   .analysis-grid{grid-template-columns:1fr}
   .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
+  .intel-grid{grid-template-columns:1fr 1fr}
+  .kv-grid{grid-template-columns:1fr}
   .edit-grid{grid-template-columns:1fr 1fr}
   .rate-grid{grid-template-columns:1fr}
   .parcel-grid,.drawing-stage{grid-template-columns:1fr}
   .takeoff-grid{grid-template-columns:1fr 1fr}
   .region-editor{grid-template-columns:1fr 1fr}
+  .sheet-inspector-grid,.region-tools{grid-template-columns:1fr}
   .cost-summary-grid{grid-template-columns:1fr}
   .page-body,.page-header,.detail-header{padding-left:24px;padding-right:24px}
 }
@@ -1305,6 +1340,92 @@ function DrawingReview({analysis}){
   );
 }
 
+function ProjectIntelligenceDashboard({project,notify}){
+  const [report,setReport]=useState(null);
+  const [open,setOpen]=useState("overview");
+  useEffect(()=>{api.get(`/api/projects/${project.id}/report`).then(d=>{if(d.success)setReport(d.report)})},[project.id,project.estimate,project.takeoffs,project.parcel_data]);
+  if(!report)return React.createElement("div",{className:"loading-state"},React.createElement("div",{className:"spinner"}),React.createElement("p",null,"Building project intelligence..."));
+  const m=report.metrics||{};
+  const s=report.sections||{};
+  const tileFmt={
+    gross_construction_area_sqft:fmt.sqft,
+    carpet_area_sqft:fmt.sqft,
+    site_area_sqft:fmt.sqft,
+    total_cost_with_gst:fmt.inr,
+    gst_total:fmt.inr,
+    cost_per_sqft:v=>`₹${fmt.num(v)}`,
+    facade_area_sqft:fmt.sqft,
+    glazing_area_sqft:fmt.sqft,
+    flooring_area_sqft:fmt.sqft,
+  };
+  const tiles=[
+    ["gross_construction_area_sqft","Gross Area","overview"],
+    ["carpet_area_sqft","Carpet Area","overview"],
+    ["efficiency_pct","Efficiency %","overview"],
+    ["site_area_sqft","Site Area","land"],
+    ["far_used","FAR Used","land"],
+    ["total_cost_with_gst","Total Cost","cost"],
+    ["cost_per_sqft","Cost / sqft","cost"],
+    ["gst_total","GST","cost"],
+    ["facade_area_sqft","Facade Area","takeoffs"],
+    ["glazing_area_sqft","Glazing Area","takeoffs"],
+    ["flooring_area_sqft","Flooring Area","takeoffs"],
+    ["parking_spaces","Parking","overview"],
+  ];
+  const value=(key)=>tileFmt[key]?tileFmt[key](m[key]):fmt.num(m[key]);
+  const kv=(obj)=>React.createElement("div",{className:"kv-grid"},Object.entries(obj||{}).map(([k,v])=>React.createElement("div",{className:"kv",key:k},
+    React.createElement("div",{className:"kv-label"},k.replaceAll("_"," ")),
+    React.createElement("div",{className:"kv-value"},Array.isArray(v)?v.join(", "):(typeof v==="object"?JSON.stringify(v):String(v??"—")))
+  )));
+  const section=(id,title,body)=>React.createElement("div",{className:"intel-section",key:id},
+    React.createElement("div",{className:"intel-section-head",onClick:()=>setOpen(open===id?"":id)},
+      React.createElement("div",{className:"intel-section-title"},title),
+      React.createElement("div",{className:"mono"},open===id?"OPEN":"VIEW")
+    ),
+    open===id&&React.createElement("div",{className:"intel-section-body"},body)
+  );
+  async function downloadInvestor(){
+    const r=await fetch(`${API}/api/projects/${project.id}/investor-report.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
+    if(!r.ok){notify("Investor report is not ready.","error");return}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-investor-report.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"projects-header"},
+      React.createElement("div",null,
+        React.createElement("div",{className:"projects-title"},"Project Intelligence Dashboard"),
+        React.createElement("div",{className:"page-subtitle"},"Bank and investor summary assembled from land, drawings, takeoffs, BOQ, GST and scenarios.")
+      ),
+      React.createElement("button",{className:"btn-new",onClick:downloadInvestor},"Download Investor CSV")
+    ),
+    React.createElement("div",{className:"intel-grid"},tiles.map(([key,label,target])=>React.createElement("div",{className:"intel-tile",key:key,onClick:()=>setOpen(target)},
+      React.createElement("div",{className:"intel-value"},value(key)),
+      React.createElement("div",{className:"intel-label"},label)
+    ))),
+    section("overview","Project Overview",React.createElement(React.Fragment,null,kv(s.project_overview),React.createElement("div",{style:{height:14}}),kv({floors:m.floors,units:m.units,parking:m.parking_spaces,efficiency_pct:m.efficiency_pct}))),
+    section("land","Land / RERA Summary",kv(s.land_rera)),
+    section("drawings","Drawing Intelligence",React.createElement(React.Fragment,null,
+      kv({sheets:(s.drawing_intelligence?.sheets||[]).length,regions:(s.drawing_intelligence?.regions||[]).length,model_status:s.drawing_intelligence?.model_reconstruction?.status||"—"}),
+      React.createElement("div",{className:"review-list",style:{marginTop:14}},(s.missing_information||[]).map((x,i)=>React.createElement("div",{className:"review-pill",key:i},x)))
+    )),
+    section("takeoffs","Takeoff Summary",kv(s.takeoffs)),
+    section("cost","Cost / GST Summary",kv({subtotal:m.subtotal,cgst_6pct:m.cgst_6pct,sgst_6pct:m.sgst_6pct,total_gst:m.gst_total,total_with_gst:m.total_cost_with_gst,contingency:m.contingency,cost_per_sqft:m.cost_per_sqft})),
+    section("risks","Risks and Assumptions",React.createElement("div",{className:"review-grid"},
+      React.createElement("div",{className:"review-list"},(s.risks||[]).map((x,i)=>React.createElement("div",{className:"review-pill",key:i},x))),
+      React.createElement("div",{className:"review-list"},(s.assumptions||[]).map((x,i)=>React.createElement("div",{className:"review-pill",key:i},x)))
+    )),
+    section("scenarios","Scenario Summary",React.createElement("div",{className:"affected-list"},(report.scenarios||[]).slice(0,5).map(sc=>React.createElement("div",{className:"affected-row",key:sc.id},
+      React.createElement("span",null,sc.name),
+      React.createElement("strong",{style:{color:(sc.result?.delta||0)>=0?"var(--red)":"var(--green)"}},`${(sc.result?.delta||0)>=0?"+":"-"}${fmt.inr(Math.abs(sc.result?.delta||0))}`)
+    ))))
+  );
+}
+
 function ExtractionEditor({projectId,analysis,onUpdated,notify}){
   const [form,setForm]=useState(()=>({
     building_type:analysis.building_type||"Residential Tower",
@@ -1378,11 +1499,19 @@ function ParcelEditor({project,onUpdated,notify}){
     plot_number:parcel.plot_number||"",
     khasra_number:parcel.khasra_number||"",
     rera_number:parcel.rera_number||"",
+    authority:parcel.authority||"",
+    latitude:parcel.latitude||"",
+    longitude:parcel.longitude||"",
     site_area_sqft:parcel.site_area_sqft||"",
+    boundary_area_sqft:parcel.boundary_area_sqft||"",
+    boundary_points:parcel.boundary_points||[],
     permissible_far:parcel.permissible_far||"",
     ground_coverage_pct:parcel.ground_coverage_pct||"",
     land_use:parcel.land_use||"Residential",
     gis_reference:parcel.gis_reference||"",
+    gis_portal:parcel.gis_portal||"",
+    rera_portal:parcel.rera_portal||"",
+    verification_status:parcel.verification_status||"self_entered",
     notes:parcel.notes||""
   }));
   const [saving,setSaving]=useState(false);
@@ -1398,7 +1527,18 @@ function ParcelEditor({project,onUpdated,notify}){
     if(d.success){notify("Parcel details saved.","success");onUpdated(d.parcel_data)}
     else notify(d.message||"Could not save parcel details.","error");
   }
+  function addBoundaryPoint(){
+    const lat=Number(form.latitude)||28.6139;
+    const lng=Number(form.longitude)||77.2090;
+    set("boundary_points",[...(form.boundary_points||[]),{lat:lat+((form.boundary_points||[]).length%2)*0.0009,lng:lng+Math.floor((form.boundary_points||[]).length/2)*0.0009}]);
+  }
+  function clearBoundary(){set("boundary_points",[]);set("boundary_area_sqft","")}
+  function boundaryText(points){return (points||[]).map((p,i)=>`${i+1}. ${Number(p.lat).toFixed(6)}, ${Number(p.lng).toFixed(6)}`).join("\\n")}
+  const boundary=form.boundary_points||[];
   const mapUrl=parcel.map_url||`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([form.address,form.city,form.state].filter(Boolean).join(" "))}`;
+  const mapEmbed=`https://maps.google.com/maps?q=${encodeURIComponent([form.address,form.city,form.state].filter(Boolean).join(" ")||"Delhi NCR")}&t=k&z=16&output=embed`;
+  const gisUrl=form.gis_portal||`https://www.google.com/search?q=${encodeURIComponent([form.authority||form.city,"GIS plot map",form.plot_number||form.khasra_number].filter(Boolean).join(" "))}`;
+  const reraUrl=form.rera_portal||`https://www.google.com/search?q=${encodeURIComponent([form.state||"India","RERA",form.rera_number||project.name].filter(Boolean).join(" "))}`;
   return React.createElement("div",{className:"workflow-stack"},
     React.createElement("div",{className:"projects-title"},"Parcel and Land Selection"),
     React.createElement("div",{className:"parcel-grid"},
@@ -1407,14 +1547,29 @@ function ParcelEditor({project,onUpdated,notify}){
           input("address","Address"),
           input("city","City"),
           input("state","State / Region"),
+          input("authority","Authority / GIS Body"),
           input("plot_number","Plot Number"),
           input("khasra_number","Khasra Number"),
           input("rera_number","RERA Number"),
+          input("latitude","Latitude","number"),
+          input("longitude","Longitude","number"),
           input("site_area_sqft","Site Area sqft","number"),
+          input("boundary_area_sqft","Boundary Area sqft","number"),
           input("permissible_far","FAR / FSI","number"),
           input("ground_coverage_pct","Ground Coverage %","number"),
           input("land_use","Land Use"),
-          input("gis_reference","GIS / Authority Ref")
+          input("gis_reference","GIS / Authority Ref"),
+          input("gis_portal","GIS Portal URL"),
+          input("rera_portal","RERA Portal URL"),
+          input("verification_status","Verification Status")
+        ),
+        React.createElement("div",{className:"form-field",style:{marginTop:16}},
+          React.createElement("label",null,"Plot Boundary Points"),
+          React.createElement("textarea",{value:boundaryText(boundary),readOnly:true})
+        ),
+        React.createElement("div",{className:"edit-actions"},
+          React.createElement("button",{className:"btn-outline",onClick:addBoundaryPoint},"Add Boundary Point"),
+          React.createElement("button",{className:"btn-outline",onClick:clearBoundary},"Clear Boundary")
         ),
         React.createElement("div",{className:"form-field",style:{marginTop:16}},
           React.createElement("label",null,"Land Notes"),
@@ -1425,8 +1580,18 @@ function ParcelEditor({project,onUpdated,notify}){
       React.createElement("div",{className:"map-preview"},
         React.createElement("div",null,
           React.createElement("div",{className:"info-card-title"},"Map Reference"),
-          React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6,marginBottom:18}},"MVP uses address, plot, khasra and RERA fields with a map search link. Verified municipal parcel/GIS lookup can be connected city by city later."),
-          React.createElement("a",{className:"btn-new",href:mapUrl,target:"_blank",rel:"noreferrer",style:{display:"inline-flex"}},"Open Map")
+          React.createElement("iframe",{className:"parcel-map-frame",src:mapEmbed,title:"Parcel map preview",loading:"lazy"}),
+          React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6,marginBottom:12}},"Use the map/GIS links to verify the parcel, then add boundary points and save. The backend estimates site area from boundary points when coordinates are available."),
+          React.createElement("div",{className:"boundary-canvas"},
+            boundary.map((p,i)=>React.createElement("span",{className:"boundary-point",key:i,style:{left:`${15+(i%4)*22}%`,top:`${22+Math.floor(i/4)*28}%`}})),
+            boundary.slice(0,-1).map((p,i)=>React.createElement("span",{className:"boundary-line",key:`l${i}`,style:{left:`${15+(i%4)*22}%`,top:`${22+Math.floor(i/4)*28}%`,width:"22%",transform:`rotate(${i%2?58:0}deg)`}}))
+          ),
+          React.createElement("div",{className:"portal-grid"},
+            React.createElement("a",{className:"btn-outline",href:mapUrl,target:"_blank",rel:"noreferrer"},"Open Map"),
+            React.createElement("a",{className:"btn-outline",href:gisUrl,target:"_blank",rel:"noreferrer"},"Open GIS"),
+            React.createElement("a",{className:"btn-outline",href:reraUrl,target:"_blank",rel:"noreferrer"},"Open RERA"),
+            React.createElement("button",{className:"btn-primary-sm",onClick:save,disabled:saving},saving?"Saving...":"Save Parcel")
+          )
         )
       )
     )
@@ -1455,7 +1620,7 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
   }
   async function saveRegions(next=regions){
     const d=await api.put(`/api/projects/${projectId}/drawing-regions`,{drawing_regions:next});
-    if(d.success){setRegions(d.drawing_regions);setTakeoffs(d.takeoffs);onUpdated({drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});notify("Regions and takeoffs updated.","success")}
+    if(d.success){setRegions(d.drawing_regions);setTakeoffs(d.takeoffs);onUpdated({drawing_regions:d.drawing_regions,takeoffs:d.takeoffs,estimate:d.estimate});notify("Regions, takeoffs and BOQ updated.","success")}
   }
   async function exportTakeoffs(){
     const r=await fetch(`${API}/api/projects/${projectId}/takeoffs.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
@@ -1468,10 +1633,10 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
     a.click();
     URL.revokeObjectURL(url);
   }
-  function updateSheet(i,k,v){setSheets(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:v}:r))}
-  function updateRegion(i,k,v){setRegions(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:["x","y","w","h","sheet_page","quantity_sqft"].includes(k)?Number(v):v}:r))}
+  function updateSheet(i,k,v){setSheets(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:["scale_pixels","scale_real_ft","floor_height_ft"].includes(k)?Number(v):v}:r))}
+  function updateRegion(i,k,v){setRegions(rows=>rows.map((r,idx)=>idx===i?{...r,[k]:["x","y","w","h","sheet_page","quantity_sqft","length_ft","width_ft","height_ft"].includes(k)?Number(v):v}:r))}
   function patchRegion(i,patch){setRegions(rows=>rows.map((r,idx)=>idx===i?{...r,...patch}:r))}
-  function addRegion(){setRegions(rows=>[...rows,{id:`local-${Date.now()}`,sheet_page:(sheets[active]?.page||1),region_type:"room_zone",label:"New region",x:12,y:12,w:24,h:18,quantity_sqft:0,quantity_hint:"",confidence:"manual"}])}
+  function addRegion(type="room_zone",label="New region"){setRegions(rows=>[...rows,{id:`local-${Date.now()}`,sheet_page:(sheets[active]?.page||1),region_type:type,label,x:12,y:12,w:24,h:18,quantity_sqft:0,length_ft:0,width_ft:0,height_ft:type==="facade_zone"||type==="opening"?10:0,material:type==="opening"?"glazing":type==="facade_zone"?"painted_plaster":"",quantity_hint:"",confidence:"manual"}])}
   function clamp(n,min,max){return Math.min(Math.max(n,min),max)}
   function startRegionPointer(e,index,mode){
     e.preventDefault();
@@ -1499,6 +1664,7 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
   const fileUrl=project.file_name?api.fileUrl(`/api/projects/${projectId}/file`):"";
   const isImage=(project.file_mime||"").startsWith("image/");
   const isPdf=(project.file_mime||"").includes("pdf");
+  const activeSheet=sheets[active]||{};
   return React.createElement("div",{className:"workflow-stack"},
     React.createElement("div",{className:"projects-header"},
       React.createElement("div",null,
@@ -1508,6 +1674,10 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
       React.createElement("button",{className:"btn-new",onClick:generate,disabled:loading},loading?"Reading...":"Generate Sheets")
     ),
     React.createElement("div",{className:"sheet-table-wrap"},
+      sheets.length>0&&React.createElement("div",{className:"thumb-strip"},sheets.map((s,i)=>React.createElement("div",{className:`page-thumb ${i===active?"active":""}`,key:s.id||i,onClick:()=>setActive(i)},
+        React.createElement("div",{className:"thumb-page"},s.page),
+        React.createElement("div",{className:"thumb-label"},s.thumbnail_label||s.sheet_type)
+      ))),
       React.createElement("table",{className:"line-items-table"},
         React.createElement("thead",null,React.createElement("tr",null,["Page","Type","Title","Floor","Scale","North","Annotations"].map(h=>React.createElement("th",{key:h},h)))),
         React.createElement("tbody",null,sheets.map((s,i)=>React.createElement("tr",{key:s.id||i},
@@ -1529,7 +1699,30 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
           React.createElement("strong",null,`Page ${s.page}`),
           React.createElement("div",{style:{color:"var(--dim)",fontSize:".82rem",marginTop:4}},s.sheet_title||s.sheet_type)
         ))),
-        React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-outline",onClick:addRegion},"Add Region"),React.createElement("button",{className:"btn-primary-sm",onClick:()=>saveRegions()},"Save Regions"))
+        activeSheet.page&&React.createElement("div",{className:"sheet-inspector"},
+          React.createElement("div",{className:"info-card-title"},"Current Sheet"),
+          React.createElement("div",{className:"sheet-inspector-grid"},
+            [["Type",activeSheet.sheet_type],["Floor",activeSheet.floor_name||"—"],["Scale",activeSheet.scale||"—"],["North",activeSheet.north_direction||"—"],["Confidence",activeSheet.confidence||"—"],["Missing",(activeSheet.missing_fields||[]).length||"0"]].map(([label,value])=>React.createElement("div",{className:"sheet-meta-pill",key:label},
+              React.createElement("div",{className:"sheet-meta-label"},label),
+              React.createElement("div",{className:"sheet-meta-value"},value)
+            ))
+          ),
+          React.createElement("div",{className:"edit-grid",style:{marginTop:12}},
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Scale Pixels"),React.createElement("input",{type:"number",value:activeSheet.scale_pixels||"",onChange:e=>updateSheet(active,"scale_pixels",e.target.value)})),
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Real Length ft"),React.createElement("input",{type:"number",value:activeSheet.scale_real_ft||"",onChange:e=>updateSheet(active,"scale_real_ft",e.target.value)})),
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Floor Height ft"),React.createElement("input",{type:"number",value:activeSheet.floor_height_ft||"",onChange:e=>updateSheet(active,"floor_height_ft",e.target.value)})),
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Thumb Label"),React.createElement("input",{value:activeSheet.thumbnail_label||"",onChange:e=>updateSheet(active,"thumbnail_label",e.target.value)}))
+          ),
+          React.createElement("div",{className:"tag-row"},(activeSheet.detected_labels||[]).map(t=>React.createElement("span",{className:"mini-tag",key:t},t))),
+          (activeSheet.missing_fields||[]).length>0&&React.createElement("div",{className:"tag-row"},activeSheet.missing_fields.map(t=>React.createElement("span",{className:"mini-tag",key:t},`Missing: ${t}`)))
+        ),
+        React.createElement("div",{className:"region-tools"},
+          React.createElement("button",{className:"btn-outline",onClick:()=>addRegion("room_zone","Room / flooring zone")},"Room"),
+          React.createElement("button",{className:"btn-outline",onClick:()=>addRegion("wall_zone","Wall zone")},"Wall"),
+          React.createElement("button",{className:"btn-outline",onClick:()=>addRegion("facade_zone","Facade zone")},"Facade"),
+          React.createElement("button",{className:"btn-outline",onClick:()=>addRegion("opening","Window / opening")},"Opening")
+        ),
+        React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-primary-sm",onClick:()=>saveRegions()},"Save Regions"))
       ),
       React.createElement("div",null,
         React.createElement("div",{className:"drawing-canvas",ref:canvasRef,onPointerMove:moveRegionPointer,onPointerUp:endRegionPointer,onPointerLeave:endRegionPointer},
@@ -1548,6 +1741,10 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
             React.createElement("input",{className:"boq-input",value:r.region_type,onChange:e=>updateRegion(i,"region_type",e.target.value)}),
             React.createElement("input",{className:"boq-input",type:"number",value:r.sheet_page,onChange:e=>updateRegion(i,"sheet_page",e.target.value)}),
             React.createElement("input",{className:"boq-input",type:"number",placeholder:"sqft",value:r.quantity_sqft||"",onChange:e=>updateRegion(i,"quantity_sqft",e.target.value)}),
+            React.createElement("input",{className:"boq-input",type:"number",placeholder:"L ft",value:r.length_ft||"",onChange:e=>updateRegion(i,"length_ft",e.target.value)}),
+            React.createElement("input",{className:"boq-input",type:"number",placeholder:"W ft",value:r.width_ft||"",onChange:e=>updateRegion(i,"width_ft",e.target.value)}),
+            React.createElement("input",{className:"boq-input",type:"number",placeholder:"H ft",value:r.height_ft||"",onChange:e=>updateRegion(i,"height_ft",e.target.value)}),
+            React.createElement("input",{className:"boq-input",placeholder:"material",value:r.material||"",onChange:e=>updateRegion(i,"material",e.target.value)}),
             React.createElement("input",{className:"boq-input",value:r.quantity_hint,onChange:e=>updateRegion(i,"quantity_hint",e.target.value)})
           ))
         )
@@ -1563,23 +1760,34 @@ function DrawingIntelligence({projectId,project,onUpdated,notify}){
 
 function TakeoffSummary({takeoffs}){
   const q=takeoffs.quantities||{};
+  const links=takeoffs.boq_links||{};
+  const materials=takeoffs.material_schedule||{};
+  const model=takeoffs.model_reconstruction||{};
   const items=[
-    ["Slab Area",q.slab_area_sqft],
-    ["Wall Area",q.wall_area_sqft],
-    ["Facade Area",q.facade_area_sqft],
-    ["Glazing Area",q.window_glazing_area_sqft],
-    ["Flooring Area",q.flooring_area_sqft],
-    ["Plaster/Paint",q.plaster_paint_area_sqft],
-    ["MEP Allowance",q.mep_allowance_sqft],
-    ["Parking Area",q.parking_area_sqft],
-    ["Basement Area",q.basement_area_sqft],
+    ["Slab Area","slab_area_sqft",q.slab_area_sqft],
+    ["Wall Area","wall_area_sqft",q.wall_area_sqft],
+    ["Facade Area","facade_area_sqft",q.facade_area_sqft],
+    ["Glazing Area","window_glazing_area_sqft",q.window_glazing_area_sqft],
+    ["Flooring Area","flooring_area_sqft",q.flooring_area_sqft],
+    ["Plaster/Paint","plaster_paint_area_sqft",q.plaster_paint_area_sqft],
+    ["MEP Allowance","mep_allowance_sqft",q.mep_allowance_sqft],
+    ["Parking Area","parking_area_sqft",q.parking_area_sqft],
+    ["Basement Area","basement_area_sqft",q.basement_area_sqft],
   ];
   return React.createElement("div",{className:"workflow-stack"},
     React.createElement("div",{className:"projects-title"},"Automated Takeoffs"),
-    React.createElement("div",{className:"takeoff-grid"},items.map(([label,value])=>React.createElement("div",{className:"takeoff-card",key:label},
+    React.createElement("div",{className:"takeoff-grid"},items.map(([label,key,value])=>React.createElement("div",{className:"takeoff-card",key:label},
       React.createElement("div",{className:"takeoff-val"},fmt.sqft(value)),
-      React.createElement("div",{className:"takeoff-label"},label)
+      React.createElement("div",{className:"takeoff-label"},label),
+      React.createElement("div",{className:"takeoff-link"},"Feeds: ",(links[key]||["BOQ"]).join(", "))
     ))),
+    Object.keys(materials).length>0&&React.createElement("div",{className:"affected-list"},
+      Object.entries(materials).map(([name,item])=>React.createElement("div",{className:"affected-row",key:name},
+        React.createElement("span",null,name),
+        React.createElement("strong",null,fmt.sqft(item.area_sqft))
+      ))
+    ),
+    model.status&&React.createElement("div",{className:"disclaimer"},`${model.method} Status: ${model.status}. Facade regions: ${model.facade_regions||0}. Opening regions: ${model.opening_regions||0}.`),
     React.createElement("div",{className:"disclaimer"},(takeoffs.assumptions||[]).join(" "))
   );
 }
@@ -1638,7 +1846,8 @@ function RateLibrary(){
     React.createElement("div",{className:"projects-title"},"Rate Library"),
     React.createElement("div",{className:"rate-grid"},
       table("Material Seed Rates",library?.materials||[]),
-      table("Labour Seed Rates",library?.labour||[])
+      table("Labour Seed Rates",library?.labour||[]),
+      table("BOQ Seed Rates",library?.boq||[])
     ),
     React.createElement("div",{className:"disclaimer"},library?.note||"Loading rate library...")
   );
@@ -2059,6 +2268,7 @@ function ProjectDetail({projectId,onBack,notify}){
 
       // Analysis results
       !analyzing&&analysis&&React.createElement(React.Fragment,null,
+        estimate&&React.createElement(ProjectIntelligenceDashboard,{project,notify}),
         React.createElement(DrawingReview,{analysis}),
         React.createElement(ExtractionEditor,{projectId,analysis,onUpdated:handleAnalysisUpdate,notify}),
         React.createElement(DrawingIntelligence,{projectId,project,onUpdated:handleDrawingUpdate,notify}),
