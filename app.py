@@ -20,7 +20,10 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "nirman.db")
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PERSISTENT_DATA_DIR = os.environ.get("NIRMAN_DATA_DIR") or ("/var/data" if os.path.isdir("/var/data") else APP_DIR)
+DB_PATH = os.environ.get("NIRMAN_DB_PATH") or os.path.join(PERSISTENT_DATA_DIR, "nirman.db")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "nirman-admin-2025")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
