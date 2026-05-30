@@ -308,6 +308,12 @@ a{text-decoration:none;color:inherit}
 .modal-close svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2}
 .modal-body{padding:28px 32px}
 .modal-footer{padding:20px 32px;border-top:1px solid var(--border);display:flex;gap:12px;justify-content:flex-end}
+.property-type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:10px}
+.property-type-card{border:1px solid var(--border);background:var(--bg);color:var(--dim);text-align:left;padding:13px;border-radius:var(--radius);cursor:pointer;transition:border-color .2s,background .2s,color .2s}
+.property-type-card:hover,.property-type-card.active{border-color:var(--accent);background:var(--accent-bg);color:var(--white)}
+.property-type-card strong{display:block;font-family:var(--syne);font-size:.9rem;line-height:1.2}
+.property-type-card span{display:block;color:var(--dim);font-size:.72rem;line-height:1.35;margin-top:5px}
+.property-type-chip{display:inline-flex;margin-top:9px;font-family:var(--mono);font-style:normal;font-size:.45rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(126,184,201,.25);padding:4px 7px}
 .btn-ghost-sm{padding:10px 20px;background:none;border:1px solid var(--border);color:var(--dim);font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:all .2s;border-radius:var(--radius)}
 .btn-ghost-sm:hover{border-color:var(--white);color:var(--white)}
 .btn-primary-sm{padding:10px 24px;background:var(--accent);color:var(--bg);border:none;font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .2s;border-radius:var(--radius)}
@@ -625,6 +631,9 @@ a{text-decoration:none;color:inherit}
 .edit-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .edit-grid .form-field{margin-bottom:0}
 .edit-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
+.amenity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.check-row{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:.8rem;color:var(--dim)}
+.check-row input{width:auto;accent-color:var(--accent)}
 .scenario-shell{display:grid;grid-template-columns:360px 1fr;gap:24px}
 .scenario-controls{background:var(--surface);border:1px solid var(--border);padding:24px;border-radius:var(--radius)}
 .scenario-controls .form-field{margin-bottom:16px}
@@ -765,7 +774,7 @@ a{text-decoration:none;color:inherit}
   .workflow-panel-meta{text-align:left}
   .model-layout,.forecast-layout,.approval-hero,.material-swap-layout,.editable-model{grid-template-columns:1fr}
   .editable-model{grid-template-areas:"controls" "model" "stats"}
-  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.drawing-review-shell,.change-grid,.takeoff-review,.report-command,.report-section-grid{grid-template-columns:1fr}
+  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.drawing-review-shell,.change-grid,.takeoff-review,.report-command,.report-section-grid,.property-type-grid,.amenity-grid{grid-template-columns:1fr}
   .material-selector{grid-template-columns:1fr 1fr}
   .stats-row{grid-template-columns:1fr 1fr}
   .analysis-grid{grid-template-columns:1fr}
@@ -1487,6 +1496,16 @@ function NewProjectModal({onClose,onCreate}){
   const [form,setForm]=useState({name:"",address:"",project_type:"residential_tower"});
   const [loading,setLoading]=useState(false);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const propertyTypes=[
+    ["residential_tower","Residential Tower","apartments, lifts, fire, facade"],
+    ["group_housing","Group Housing","multiple towers, clubhouse, STP"],
+    ["villa","Villa / House","floor breakup, pool, luxury"],
+    ["commercial_office","Commercial Office","core, HVAC, BMS, facade"],
+    ["mall_retail","Mall / Retail","atrium, escalators, food court"],
+    ["banquet_hall","Banquet Hall","kitchen, AV, acoustic ceiling"],
+    ["hotel_hospitality","Hotel","rooms, BOH, public areas"],
+    ["industrial_warehouse","Warehouse","PEB, docks, industrial floor"]
+  ];
 
   async function submit(e){
     e.preventDefault();
@@ -1515,11 +1534,14 @@ function NewProjectModal({onClose,onCreate}){
           ),
           React.createElement("div",{className:"form-field"},
             React.createElement("label",null,"Project Type"),
-            React.createElement("select",{value:form.project_type,onChange:e=>set("project_type",e.target.value)},
-              React.createElement("option",{value:"residential_tower"},"Residential Tower"),
-              React.createElement("option",{value:"group_housing"},"Group Housing"),
-              React.createElement("option",{value:"villa_project"},"Villa Project (coming soon)")
-            )
+            React.createElement("div",{className:"property-type-grid"},
+              propertyTypes.map(([value,label,note])=>React.createElement("button",{type:"button",className:`property-type-card ${form.project_type===value?"active":""}`,key:value,onClick:()=>set("project_type",value)},
+                React.createElement("strong",null,label),
+                React.createElement("span",null,note),
+                React.createElement("em",{className:"property-type-chip"},form.project_type===value?"selected":"choose")
+              ))
+            ),
+            React.createElement("div",{className:"workflow-hint",style:{marginTop:8}},"This controls default assumptions. The AI will still classify the uploaded drawing as architectural, HVAC, electrical, plumbing, fire or another discipline.")
           )
         ),
         React.createElement("div",{className:"modal-footer"},
@@ -1540,6 +1562,7 @@ function DrawingReview({analysis}){
   const score=confidence==="high"?86:confidence==="low"?48:68;
   const fields=[
     ["Building type",analysis.building_type,"AI extraction"],
+    ["Drawing scope",analysis.estimate_scope==="discipline_only"?"Discipline only":"Full project",analysis.drawing_discipline||"architectural"],
     ["Floors",analysis.total_floors,"editable"],
     ["Units",fmt.num(analysis.total_units),"editable"],
     ["Built-up area",fmt.sqft(analysis.total_built_up_area_sqft),"editable"],
@@ -1588,7 +1611,8 @@ function DrawingReview({analysis}){
       React.createElement("div",{className:"info-card"},
         React.createElement("div",{className:"info-card-title"},"Extraction Confidence"),
         React.createElement("span",{className:`confidence ${confidence}`},confidence),
-        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},analysis.ai_source==="demo_fallback"?"Demo fallback is active until the Anthropic API key is added.":"Review the extracted fields before using the estimate commercially.")
+        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},analysis.scope_reason||"Review the extracted fields before using the estimate commercially."),
+        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:10}},analysis.ai_source==="demo_fallback"?"Demo fallback is active until the AI API key is added.":"Review the extracted fields before using the estimate commercially.")
       )
     )
   );
@@ -1683,6 +1707,7 @@ function ProjectIntelligenceDashboard({project,notify}){
 function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLabel}){
   const [form,setForm]=useState(()=>({
     building_type:analysis.building_type||"Residential Tower",
+    project_type:analysis.project_type||"residential_tower",
     total_floors:analysis.total_floors||15,
     total_units:analysis.total_units||60,
     total_built_up_area_sqft:analysis.total_built_up_area_sqft||75000,
@@ -1692,11 +1717,26 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     basement_levels:analysis.basement_levels||0,
     parking_spaces:analysis.parking_spaces||0,
     lift_count:analysis.lift_count||2,
+    basement_area_sqft:analysis.floor_wise_areas?.basement||0,
+    ground_floor_area_sqft:analysis.floor_wise_areas?.ground||0,
+    upper_floor_area_sqft:(analysis.floor_wise_areas?.first||0)+(analysis.floor_wise_areas?.second||0),
+    terrace_area_sqft:analysis.floor_wise_areas?.terrace||0,
+    pool_landscape_area_sqft:analysis.floor_wise_areas?.pool_landscape||0,
+    swimming_pool:!!analysis.luxury_amenities?.swimming_pool,
+    sauna:!!analysis.luxury_amenities?.sauna,
+    modular_kitchen:!!analysis.luxury_amenities?.modular_kitchen,
+    home_automation:!!analysis.luxury_amenities?.home_automation,
+    pergola:!!analysis.luxury_amenities?.pergola,
+    fire_pit:!!analysis.luxury_amenities?.fire_pit,
+    bar:!!analysis.luxury_amenities?.bar,
+    gym:!!analysis.luxury_amenities?.gym,
+    home_theater:!!analysis.luxury_amenities?.home_theater,
     notes:analysis.notes||""
   }));
   const [saving,setSaving]=useState(false);
   useEffect(()=>setForm({
     building_type:analysis.building_type||"Residential Tower",
+    project_type:analysis.project_type||"residential_tower",
     total_floors:analysis.total_floors||15,
     total_units:analysis.total_units||60,
     total_built_up_area_sqft:analysis.total_built_up_area_sqft||75000,
@@ -1706,6 +1746,20 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     basement_levels:analysis.basement_levels||0,
     parking_spaces:analysis.parking_spaces||0,
     lift_count:analysis.lift_count||2,
+    basement_area_sqft:analysis.floor_wise_areas?.basement||0,
+    ground_floor_area_sqft:analysis.floor_wise_areas?.ground||0,
+    upper_floor_area_sqft:(analysis.floor_wise_areas?.first||0)+(analysis.floor_wise_areas?.second||0),
+    terrace_area_sqft:analysis.floor_wise_areas?.terrace||0,
+    pool_landscape_area_sqft:analysis.floor_wise_areas?.pool_landscape||0,
+    swimming_pool:!!analysis.luxury_amenities?.swimming_pool,
+    sauna:!!analysis.luxury_amenities?.sauna,
+    modular_kitchen:!!analysis.luxury_amenities?.modular_kitchen,
+    home_automation:!!analysis.luxury_amenities?.home_automation,
+    pergola:!!analysis.luxury_amenities?.pergola,
+    fire_pit:!!analysis.luxury_amenities?.fire_pit,
+    bar:!!analysis.luxury_amenities?.bar,
+    gym:!!analysis.luxury_amenities?.gym,
+    home_theater:!!analysis.luxury_amenities?.home_theater,
     notes:analysis.notes||""
   }),[analysis]);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -1715,15 +1769,97 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
   );
   async function save(){
     setSaving(true);
-    const d=await api.put(`/api/projects/${projectId}/analysis`,form);
+    const upper=Number(form.upper_floor_area_sqft)||0;
+    const payload={
+      ...form,
+      floor_wise_areas:{
+        basement:Number(form.basement_area_sqft)||0,
+        ground:Number(form.ground_floor_area_sqft)||0,
+        first:upper,
+        second:0,
+        terrace:Number(form.terrace_area_sqft)||0,
+        pool_landscape:Number(form.pool_landscape_area_sqft)||0
+      },
+      luxury_amenities:{
+        swimming_pool:!!form.swimming_pool,
+        sauna:!!form.sauna,
+        modular_kitchen:!!form.modular_kitchen,
+        home_automation:!!form.home_automation,
+        pergola:!!form.pergola,
+        fire_pit:!!form.fire_pit,
+        bar:!!form.bar,
+        gym:!!form.gym,
+        home_theater:!!form.home_theater
+      }
+    };
+    const d=await api.put(`/api/projects/${projectId}/analysis`,payload);
     setSaving(false);
     if(d.success){notify("Extraction updated and estimate recalculated.","success");onUpdated(d.analysis,d.estimate);onSaved&&onSaved()}
     else notify(d.message||"Could not save extraction.","error");
   }
+  const isVilla=form.project_type==="villa"||String(form.building_type||"").toLowerCase().includes("villa")||String(form.building_type||"").toLowerCase().includes("bungalow");
+  const categoryNotes={
+    residential_tower:{
+      basis:"RCC tower frame, lift/core services, apartment unit mix",
+      mep:"Plumbing per unit, fire/lift services, common electrical",
+      special:"Standard 16-division residential BOQ",
+      inputs:"floors, units, BUA, parking, lift count"
+    },
+    group_housing:{
+      basis:"Multiple residential towers plus shared society infrastructure",
+      mep:"STP, pump rooms, fire systems and common services",
+      special:"Clubhouse, internal roads, security gate and site services",
+      inputs:"tower count, units, site area, clubhouse and amenities"
+    },
+    villa:{
+      basis:"Floor-wise villa cost weights instead of tower assumptions",
+      mep:"Higher per-home plumbing, premium electrical and HVAC support",
+      special:"Pool, sauna, modular kitchen, automation and outdoor features",
+      inputs:"basement, ground, upper, terrace and landscape areas"
+    },
+    commercial_office:{
+      basis:"Office core, facade, lobby and commercial floor plates",
+      mep:"Central HVAC, BMS, access control, fire and fresh air systems",
+      special:"Office lobby, common toilets, core finishes and services",
+      inputs:"GFA, core area, glazing ratio, parking and MEP intensity"
+    },
+    mall_retail:{
+      basis:"Retail shell, atrium, public circulation and large common areas",
+      mep:"High HVAC, electrical load, fire safety and public toilet load",
+      special:"Escalators, food court, signage, wayfinding and mall lighting",
+      inputs:"retail area, atrium, escalator count, food court and BOH area"
+    },
+    banquet_hall:{
+      basis:"Large event hall, high finishes and service back-of-house",
+      mep:"Commercial kitchen, HVAC, AV, sound, event power and fire safety",
+      special:"Acoustic ceiling, decorative lighting, stage and kitchen scope",
+      inputs:"hall area, kitchen area, seating capacity and event services"
+    },
+    hotel_hospitality:{
+      basis:"Per-key guest room fit-out plus BOH and public areas",
+      mep:"Room plumbing, HVAC, fire, kitchen, laundry and public services",
+      special:"Guest rooms, reception, restaurant, kitchen, laundry and BOH",
+      inputs:"keys, room mix, BOH area, public area and kitchen/laundry scope"
+    },
+    industrial_warehouse:{
+      basis:"PEB/warehouse shell, industrial floor and loading operations",
+      mep:"Lower finish load with industrial electrical and fire systems",
+      special:"PEB roofing/cladding, docks, shutters and heavy-duty flooring",
+      inputs:"floor area, dock bays, clear height, floor load and fire category"
+    }
+  };
+  const category=categoryNotes[form.project_type]||categoryNotes.residential_tower;
+  const check=(k,label)=>React.createElement("label",{className:"check-row"},
+    React.createElement("input",{type:"checkbox",checked:!!form[k],onChange:e=>set(k,e.target.checked)}),
+    React.createElement("span",null,label)
+  );
   return React.createElement("div",{className:"info-card"},
     React.createElement("div",{className:"info-card-title"},"Review and Edit Extracted Data"),
     React.createElement("div",{className:"edit-grid"},
       React.createElement("div",{className:"form-field"},React.createElement("label",null,"Building Type"),React.createElement("input",{value:form.building_type,onChange:e=>set("building_type",e.target.value)})),
+      React.createElement("div",{className:"form-field"},React.createElement("label",null,"Project Type"),React.createElement("select",{value:form.project_type,onChange:e=>set("project_type",e.target.value)},
+        [["residential_tower","Residential Tower"],["group_housing","Group Housing"],["villa","Villa / Independent House"],["commercial_office","Commercial Office"],["mall_retail","Mall / Retail"],["banquet_hall","Banquet Hall"],["hotel_hospitality","Hotel"],["industrial_warehouse","Industrial / Warehouse"]].map(([value,label])=>React.createElement("option",{value,key:value},label))
+      )),
       input("total_floors","Floors"),
       input("total_units","Units"),
       input("total_built_up_area_sqft","Built-up Area"),
@@ -1733,6 +1869,37 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
       input("basement_levels","Basements"),
       input("parking_spaces","Parking"),
       input("lift_count","Lifts")
+    ),
+    React.createElement("div",{className:"info-card-title",style:{marginTop:18}},"Category Estimation Logic"),
+    React.createElement("div",{className:"property-type-grid"},
+      [["Cost Basis",category.basis],["MEP Logic",category.mep],["Special BOQ",category.special],["Accuracy Inputs",category.inputs]].map(([label,note])=>
+        React.createElement("div",{className:"property-type-card active",key:label},
+          React.createElement("strong",null,label),
+          React.createElement("span",null,note)
+        )
+      )
+    ),
+    isVilla&&React.createElement(React.Fragment,null,
+      React.createElement("div",{className:"info-card-title",style:{marginTop:18}},"Villa Area Breakup"),
+      React.createElement("div",{className:"edit-grid"},
+        input("basement_area_sqft","Basement Area"),
+        input("ground_floor_area_sqft","Ground Floor Area"),
+        input("upper_floor_area_sqft","Upper Floor Area"),
+        input("terrace_area_sqft","Terrace Area"),
+        input("pool_landscape_area_sqft","Pool / Landscape Area")
+      ),
+      React.createElement("div",{className:"info-card-title",style:{marginTop:18}},"Luxury Amenities"),
+      React.createElement("div",{className:"amenity-grid"},
+        check("swimming_pool","Swimming pool"),
+        check("sauna","Sauna / steam"),
+        check("modular_kitchen","Modular kitchen"),
+        check("home_automation","Home automation"),
+        check("pergola","Pergola"),
+        check("fire_pit","Fire pit"),
+        check("bar","Bar"),
+        check("gym","Gym"),
+        check("home_theater","Home theater")
+      )
     ),
     React.createElement("div",{className:"form-field",style:{marginTop:16}},
       React.createElement("label",null,"Notes"),

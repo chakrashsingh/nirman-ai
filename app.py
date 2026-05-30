@@ -29,6 +29,210 @@ PAGE_RENDER_DIR = os.environ.get("NIRMAN_PAGE_DIR") or os.path.join(PERSISTENT_D
 for directory in [os.path.dirname(DB_PATH), UPLOAD_DIR, PAGE_RENDER_DIR]:
     os.makedirs(directory, exist_ok=True)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "nirman-admin-2025")
+
+PROPERTY_TYPES = {
+    "residential_tower": {
+        "label": "Residential Tower",
+        "default_floors": 15,
+        "default_units": 60,
+        "default_bua": 75000,
+        "default_carpet_factor": 0.72,
+        "default_plot_factor": 0.16,
+        "default_lift_count": 3,
+    },
+    "group_housing": {
+        "label": "Residential Group Housing",
+        "default_floors": 18,
+        "default_units": 160,
+        "default_bua": 220000,
+        "default_carpet_factor": 0.70,
+        "default_plot_factor": 0.22,
+        "default_lift_count": 8,
+    },
+    "villa": {
+        "label": "Villa / Independent House",
+        "default_floors": 2,
+        "default_units": 1,
+        "default_bua": 7500,
+        "default_carpet_factor": 0.78,
+        "default_plot_factor": 1.35,
+        "default_lift_count": 0,
+    },
+    "commercial_office": {
+        "label": "Commercial Office",
+        "default_floors": 12,
+        "default_units": 1,
+        "default_bua": 120000,
+        "default_carpet_factor": 0.76,
+        "default_plot_factor": 0.20,
+        "default_lift_count": 5,
+    },
+    "mall_retail": {
+        "label": "Mall / Retail Complex",
+        "default_floors": 5,
+        "default_units": 1,
+        "default_bua": 180000,
+        "default_carpet_factor": 0.68,
+        "default_plot_factor": 0.45,
+        "default_lift_count": 8,
+    },
+    "banquet_hall": {
+        "label": "Banquet / Event Hall",
+        "default_floors": 2,
+        "default_units": 1,
+        "default_bua": 35000,
+        "default_carpet_factor": 0.74,
+        "default_plot_factor": 0.70,
+        "default_lift_count": 1,
+    },
+    "hotel_hospitality": {
+        "label": "Hotel / Hospitality",
+        "default_floors": 10,
+        "default_units": 120,
+        "default_bua": 150000,
+        "default_carpet_factor": 0.66,
+        "default_plot_factor": 0.28,
+        "default_lift_count": 5,
+    },
+    "industrial_warehouse": {
+        "label": "Industrial / Warehouse",
+        "default_floors": 1,
+        "default_units": 1,
+        "default_bua": 100000,
+        "default_carpet_factor": 0.86,
+        "default_plot_factor": 1.75,
+        "default_lift_count": 0,
+    },
+}
+
+DRAWING_DISCIPLINES = {
+    "architectural": "Architectural / full building",
+    "hvac": "HVAC only",
+    "electrical": "Electrical only",
+    "plumbing": "Plumbing only",
+    "fire": "Fire and life safety only",
+    "structural": "Structural only",
+    "interior": "Interior / fit-out only",
+}
+
+PROPERTY_COST_PROFILES = {
+    "residential_tower": {
+        "rcc_factor": 0.105,
+        "steel_factor": 8.5,
+        "electrical_rate": 118,
+        "plumbing_per_unit": 23500,
+        "fire_rate": 52,
+        "facade_factor": 0.38,
+        "glazing_factor": 0.105,
+        "flooring_factor": 0.72,
+        "door_factor": 8,
+        "sanitary_factor": 2.4,
+        "hvac_support_rate": 18,
+        "finish_multiplier": 1.0,
+    },
+    "group_housing": {
+        "rcc_factor": 0.108,
+        "steel_factor": 8.8,
+        "electrical_rate": 128,
+        "plumbing_per_unit": 26000,
+        "fire_rate": 58,
+        "facade_factor": 0.42,
+        "glazing_factor": 0.12,
+        "flooring_factor": 0.70,
+        "door_factor": 7.5,
+        "sanitary_factor": 2.35,
+        "hvac_support_rate": 22,
+        "finish_multiplier": 1.03,
+    },
+    "villa": {
+        "rcc_factor": 0.07,
+        "steel_factor": 6.2,
+        "electrical_rate": 165,
+        "plumbing_per_unit": 180000,
+        "fire_rate": 18,
+        "facade_factor": 0.50,
+        "glazing_factor": 0.18,
+        "flooring_factor": 0.82,
+        "door_factor": 18,
+        "sanitary_factor": 6,
+        "hvac_support_rate": 42,
+        "finish_multiplier": 1.35,
+    },
+    "commercial_office": {
+        "rcc_factor": 0.115,
+        "steel_factor": 9.5,
+        "electrical_rate": 210,
+        "plumbing_per_unit": 0,
+        "plumbing_sqft_rate": 58,
+        "fire_rate": 72,
+        "facade_factor": 0.52,
+        "glazing_factor": 0.28,
+        "flooring_factor": 0.82,
+        "door_area_divisor": 2200,
+        "sanitary_area_divisor": 2200,
+        "hvac_support_rate": 115,
+        "finish_multiplier": 1.18,
+    },
+    "mall_retail": {
+        "rcc_factor": 0.12,
+        "steel_factor": 10.2,
+        "electrical_rate": 260,
+        "plumbing_per_unit": 0,
+        "plumbing_sqft_rate": 72,
+        "fire_rate": 92,
+        "facade_factor": 0.58,
+        "glazing_factor": 0.34,
+        "flooring_factor": 0.88,
+        "door_area_divisor": 1700,
+        "sanitary_area_divisor": 1800,
+        "hvac_support_rate": 145,
+        "finish_multiplier": 1.28,
+    },
+    "banquet_hall": {
+        "rcc_factor": 0.095,
+        "steel_factor": 7.4,
+        "electrical_rate": 240,
+        "plumbing_per_unit": 0,
+        "plumbing_sqft_rate": 85,
+        "fire_rate": 68,
+        "facade_factor": 0.48,
+        "glazing_factor": 0.18,
+        "flooring_factor": 0.78,
+        "door_area_divisor": 1200,
+        "sanitary_area_divisor": 900,
+        "hvac_support_rate": 155,
+        "finish_multiplier": 1.42,
+    },
+    "hotel_hospitality": {
+        "rcc_factor": 0.112,
+        "steel_factor": 9.1,
+        "electrical_rate": 225,
+        "plumbing_per_unit": 52000,
+        "fire_rate": 82,
+        "facade_factor": 0.50,
+        "glazing_factor": 0.22,
+        "flooring_factor": 0.78,
+        "door_factor": 2.4,
+        "sanitary_factor": 1.35,
+        "hvac_support_rate": 135,
+        "finish_multiplier": 1.32,
+    },
+    "industrial_warehouse": {
+        "rcc_factor": 0.06,
+        "steel_factor": 5.8,
+        "electrical_rate": 115,
+        "plumbing_per_unit": 0,
+        "plumbing_sqft_rate": 24,
+        "fire_rate": 54,
+        "facade_factor": 0.34,
+        "glazing_factor": 0.035,
+        "flooring_factor": 0.92,
+        "door_area_divisor": 5000,
+        "sanitary_area_divisor": 9000,
+        "hvac_support_rate": 18,
+        "finish_multiplier": 0.72,
+    },
+}
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
@@ -74,6 +278,10 @@ Your job:
 Return this exact JSON shape:
 {
   "building_type": "Residential Tower",
+  "project_type": "residential_tower|group_housing|villa|commercial_office|mall_retail|banquet_hall|hotel_hospitality|industrial_warehouse",
+  "drawing_discipline": "architectural|hvac|electrical|plumbing|fire|structural|interior",
+  "estimate_scope": "full_project|discipline_only",
+  "scope_reason": "why this should be a full BOQ or a discipline-only estimate",
   "total_floors": 15,
   "total_units": 60,
   "unit_types": [{"type":"2BHK","count":40,"carpet_area_sqft":850}],
@@ -84,6 +292,14 @@ Return this exact JSON shape:
   "basement_levels": 1,
   "parking_spaces": 65,
   "lift_count": 3,
+  "discipline_takeoff": {
+    "equipment": [{"type":"cassette ac","qty":2,"hp":2.0,"tr":1.65,"cfm":466,"notes":"visible tag"}],
+    "total_tr": 3.3,
+    "total_cfm": 932
+  },
+  "hvac_units": [{"type":"cassette ac","qty":2,"hp_rating":2.0,"tr":1.65,"cfm":466,"room":"lounge"}],
+  "floor_wise_areas": {"basement":0,"ground":0,"first":0,"second":0,"terrace":0,"pool_landscape":0},
+  "luxury_amenities": {"swimming_pool":false,"sauna":false,"modular_kitchen":false,"home_automation":false,"pergola":false,"fire_pit":false,"bar":false,"gym":false,"home_theater":false},
   "confidence": "high|medium|low",
   "drawing_review": {
     "summary": "short review",
@@ -143,6 +359,9 @@ Rules:
 - Use Indian market terminology: RCC, TMT, DSR, CPWD, RERA, khasra/plot, FAR/FSI.
 - Use numbers without commas or units.
 - If a value is not visible, infer conservatively and list it under assumptions.
+- If the sheet is HVAC, electrical, plumbing, fire, structural, or interior-only, set estimate_scope to "discipline_only" and do not generate full-project assumptions.
+- If the selected/building type is villa or independent house, do not assume tower-style lifts, basements or apartment unit mixes.
+- If the project is a standalone villa/bungalow, set total_units = 1, building_type = "Villa", estimate floor_wise_areas, detect amenities such as pool/sauna/bar/gym/home theater/pergola/fire pit, and list HVAC units with hp_rating when visible.
 - Never include markdown, commentary or code fences.
 """
 
@@ -355,6 +574,120 @@ def validate_upload(file):
     if len(data) > MAX_UPLOAD_BYTES:
         return None, None, "Upload must be 20MB or smaller."
     return data, ALLOWED_UPLOADS[ext], None
+
+def normalize_project_type(value):
+    key = (value or "residential_tower").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "villa_project": "villa",
+        "independent_house": "villa",
+        "bungalow": "villa",
+        "commercial_space": "commercial_office",
+        "office": "commercial_office",
+        "mall": "mall_retail",
+        "retail": "mall_retail",
+        "banquate_hall": "banquet_hall",
+        "banquet": "banquet_hall",
+        "hotel": "hotel_hospitality",
+        "warehouse": "industrial_warehouse",
+    }
+    key = aliases.get(key, key)
+    return key if key in PROPERTY_TYPES else "residential_tower"
+
+def property_profile(project_type):
+    return PROPERTY_TYPES.get(normalize_project_type(project_type), PROPERTY_TYPES["residential_tower"])
+
+def cost_profile(project_type):
+    return PROPERTY_COST_PROFILES.get(normalize_project_type(project_type), PROPERTY_COST_PROFILES["residential_tower"])
+
+def extract_file_text(file_path, file_mime):
+    if not file_path or not os.path.exists(file_path):
+        return ""
+    if file_mime == "application/pdf":
+        try:
+            import fitz
+            doc = fitz.open(file_path)
+            text = "\n".join(page.get_text() for page in doc[: min(len(doc), 5)])
+            doc.close()
+            return text[:12000]
+        except Exception:
+            return ""
+    return ""
+
+def classify_drawing_scope(file_name="", text="", analysis=None):
+    haystack = f"{file_name or ''}\n{text or ''}\n{json.dumps(analysis or {}, default=str)}".lower()
+    checks = [
+        ("hvac", ["hvac", "ahu", "odu", "idu", "cassette", "ductable", "duct", "cfm", "tr ", "hi-wall", "grill for s/a", "grill for r/a"]),
+        ("electrical", ["electrical", "lighting layout", "power layout", "db schedule", "switch", "conduit", "cable tray", "lt panel"]),
+        ("plumbing", ["plumbing", "water supply", "soil pipe", "drainage", "cpvc", "upvc", "sanitary", "fixture"]),
+        ("fire", ["fire fighting", "sprinkler", "hydrant", "fire alarm", "detector", "hose reel"]),
+        ("structural", ["structural", "beam", "column", "slab reinforcement", "footing", "raft", "rebar", "bar bending"]),
+        ("interior", ["interior", "false ceiling", "furniture layout", "wardrobe", "kitchen cabinet", "floor finish"]),
+    ]
+    architectural_terms = ["site plan", "floor plan", "elevation", "section", "area statement", "unit plan", "typical floor"]
+    for discipline, words in checks:
+        hits = sum(1 for word in words if word in haystack)
+        if hits >= 2 or (discipline in ["hvac", "electrical", "plumbing"] and hits >= 1 and "layout" in haystack):
+            return {
+                "drawing_discipline": discipline,
+                "estimate_scope": "discipline_only",
+                "scope_confidence": "high" if hits >= 2 else "medium",
+                "scope_reason": f"Detected {DRAWING_DISCIPLINES[discipline]} drawing terms; estimate should stay discipline-specific.",
+            }
+    if any(term in haystack for term in architectural_terms):
+        return {
+            "drawing_discipline": "architectural",
+            "estimate_scope": "full_project",
+            "scope_confidence": "medium",
+            "scope_reason": "Architectural drawing terms detected; full-project concept BOQ can be generated with assumptions.",
+        }
+    return {
+        "drawing_discipline": (analysis or {}).get("drawing_discipline") or "architectural",
+        "estimate_scope": (analysis or {}).get("estimate_scope") or "full_project",
+        "scope_confidence": "low",
+        "scope_reason": "Drawing discipline was not confidently detected; using the selected project type and conservative assumptions.",
+    }
+
+def extract_hvac_takeoff(text):
+    equipment = []
+    total_tr = 0.0
+    total_cfm = 0.0
+    if not text:
+        return {"equipment": [], "total_tr": 0, "total_cfm": 0}
+    pattern = re.compile(r"(?:(\d+)\s*#\s*)?(\d+(?:\.\d+)?)\s*HP\s*([^\n]{0,80})", re.I)
+    for match in pattern.finditer(text):
+        qty = int(match.group(1) or 1)
+        hp = safe_float(match.group(2), 0, 0)
+        label = " ".join((match.group(3) or "").split())[:80]
+        context = text[match.start(): min(len(text), match.end() + 180)]
+        tr_match = re.search(r"(\d+(?:\.\d+)?)\s*TR", context, re.I)
+        cfm_match = re.search(r"(\d+(?:,\d+)?(?:\.\d+)?)\s*CFM", context, re.I)
+        tr = safe_float(tr_match.group(1), 0, 0) if tr_match else round(hp * 0.82, 2)
+        cfm = safe_float(cfm_match.group(1).replace(",", ""), 0, 0) if cfm_match else 0
+        lowered = label.lower()
+        eq_type = "outdoor unit" if "odu" in lowered else "ductable unit" if "duct" in lowered else "hi-wall unit" if "wall" in lowered else "cassette unit" if "cassette" in lowered else "indoor unit"
+        equipment.append({"type": eq_type, "qty": qty, "hp": hp, "tr": tr, "cfm": cfm, "notes": label or eq_type})
+        total_tr += qty * tr
+        total_cfm += qty * cfm
+    return {"equipment": equipment[:40], "total_tr": round(total_tr, 2), "total_cfm": round(total_cfm, 2)}
+
+def enrich_analysis_scope(analysis, project_row=None):
+    project_type = normalize_project_type((analysis or {}).get("project_type") or (project_row["project_type"] if project_row and "project_type" in project_row.keys() else "residential_tower"))
+    analysis["project_type"] = project_type
+    analysis["building_type"] = analysis.get("building_type") or property_profile(project_type)["label"]
+    file_path = project_row["file_path"] if project_row and "file_path" in project_row.keys() else None
+    file_mime = project_row["file_mime"] if project_row and "file_mime" in project_row.keys() else None
+    file_name = project_row["file_name"] if project_row and "file_name" in project_row.keys() else ""
+    text = extract_file_text(file_path, file_mime)
+    scope = classify_drawing_scope(file_name, text, analysis)
+    analysis.update(scope)
+    if scope["drawing_discipline"] == "hvac":
+        hvac = extract_hvac_takeoff(text)
+        if hvac["equipment"]:
+            analysis["discipline_takeoff"] = hvac
+            analysis["hvac_units"] = [{"type": e.get("type"), "qty": e.get("qty"), "hp_rating": e.get("hp"), "tr": e.get("tr"), "cfm": e.get("cfm"), "notes": e.get("notes")} for e in hvac["equipment"]]
+            analysis.setdefault("drawing_review", {}).setdefault("assumptions", [])
+            analysis["drawing_review"]["assumptions"].append("HVAC equipment list was read from visible HP/TR/CFM tags where available.")
+    return analysis
 
 def safe_filename(filename):
     base = os.path.basename(filename or "drawing")
@@ -735,7 +1068,7 @@ def create_project():
     data = request.get_json() or {}
     name = (data.get("name") or "").strip()
     address = (data.get("address") or "").strip()
-    project_type = (data.get("project_type") or "residential_tower").strip()
+    project_type = normalize_project_type(data.get("project_type"))
 
     if not name:
         return jsonify({"success": False, "message": "Project name is required."}), 400
@@ -930,7 +1263,7 @@ def analyze_project(project_id):
         return jsonify({"success": False, "message": "Upload a drawing before generating an estimate."}), 400
 
     parcel = parse_json_field(row, "parcel_data", {})
-    analysis = analyze_drawing_with_ai(row)
+    analysis = enrich_analysis_scope(analyze_drawing_with_ai(row), row)
     sheets = default_sheet_intelligence(analysis)
     regions = default_regions(analysis)
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
@@ -953,7 +1286,8 @@ def update_project_analysis(project_id):
         return jsonify({"success": False, "message": "Project not found."}), 404
 
     data = request.get_json() or {}
-    analysis = normalize_analysis(data, row["name"])
+    data["project_type"] = data.get("project_type") or row["project_type"]
+    analysis = enrich_analysis_scope(normalize_analysis(data, row["name"]), row)
     analysis["ai_source"] = data.get("ai_source") or "user_reviewed"
     analysis["notes"] = data.get("notes") or "User-reviewed extraction values."
     parcel = parse_json_field(row, "parcel_data", {})
@@ -1078,29 +1412,51 @@ def project_takeoffs(project_id):
     db.commit()
     return jsonify({"success": True, "takeoffs": takeoffs, "estimate": estimate})
 
-def fallback_analysis(project_name, reason):
+def default_unit_mix(project_type, total_units):
+    project_type = normalize_project_type(project_type)
+    if project_type == "villa":
+        return [{"type": "Villa", "count": 1, "carpet_area_sqft": 5800}]
+    if project_type in ["commercial_office", "mall_retail", "banquet_hall", "industrial_warehouse"]:
+        return [{"type": PROPERTY_TYPES[project_type]["label"], "count": 1, "carpet_area_sqft": int(PROPERTY_TYPES[project_type]["default_bua"] * PROPERTY_TYPES[project_type]["default_carpet_factor"])}]
+    if project_type == "hotel_hospitality":
+        return [{"type": "Guest Room", "count": max(total_units, 1), "carpet_area_sqft": 420}]
+    return [
+        {"type": "2BHK", "count": max(total_units * 2 // 3, 1), "carpet_area_sqft": 850},
+        {"type": "3BHK", "count": max(total_units // 3, 1), "carpet_area_sqft": 1200},
+    ]
+
+def fallback_analysis(project_name, reason, project_type="residential_tower"):
+    project_type = normalize_project_type(project_type)
+    profile = property_profile(project_type)
+    bua = int(profile["default_bua"])
+    total_units = int(profile["default_units"])
     return {
-        "building_type": "Residential Tower",
-        "total_floors": 15,
-        "total_units": 60,
-        "unit_types": [
-            {"type": "2BHK", "count": 40, "carpet_area_sqft": 850},
-            {"type": "3BHK", "count": 20, "carpet_area_sqft": 1200}
-        ],
-        "total_built_up_area_sqft": 75000,
-        "total_carpet_area_sqft": 58000,
-        "plot_area_sqft": 12000,
+        "building_type": profile["label"],
+        "project_type": project_type,
+        "drawing_discipline": "architectural",
+        "estimate_scope": "full_project",
+        "scope_reason": "Fallback estimate used selected property type because AI extraction was unavailable.",
+        "total_floors": profile["default_floors"],
+        "total_units": total_units,
+        "unit_types": default_unit_mix(project_type, total_units),
+        "total_built_up_area_sqft": bua,
+        "total_carpet_area_sqft": int(bua * profile["default_carpet_factor"]),
+        "plot_area_sqft": int(bua * profile["default_plot_factor"]),
         "structure_type": "RCC Frame",
-        "basement_levels": 1,
-        "parking_spaces": 65,
-        "lift_count": 3,
+        "basement_levels": 0 if project_type in ["villa", "banquet_hall", "industrial_warehouse"] else 1,
+        "parking_spaces": max(total_units, 4 if project_type == "villa" else 10),
+        "lift_count": profile["default_lift_count"],
+        "discipline_takeoff": {"equipment": [], "total_tr": 0, "total_cfm": 0},
+        "hvac_units": [],
+        "floor_wise_areas": {"basement": 0, "ground": bua if project_type == "villa" else 0, "first": 0, "second": 0, "terrace": 0, "pool_landscape": 0},
+        "luxury_amenities": {"swimming_pool": False, "sauna": False, "modular_kitchen": project_type == "villa", "home_automation": False, "pergola": False, "fire_pit": False, "bar": False, "gym": False, "home_theater": False},
         "confidence": "medium",
         "ai_source": "demo_fallback",
         "drawing_review": {
             "summary": "Demo review generated because live AI extraction is not configured yet.",
             "risks": ["Verify built-up area, floor count and unit mix against issued-for-construction drawings."],
             "missing_information": ["Structural drawings", "MEP drawings", "Finishing schedule"],
-            "assumptions": ["Residential tower in Delhi NCR", "RCC frame structure", "Standard finish level"]
+            "assumptions": [profile["label"], "Delhi NCR seed rates", "Standard finish level"]
         },
         "notes": f"Demo extraction for {project_name}. {reason}"
     }
@@ -1336,16 +1692,15 @@ def normalize_analysis(data, project_name):
         except (TypeError, ValueError):
             return default
 
-    total_units = positive_int(data.get("total_units"), 60)
-    bua = positive_int(data.get("total_built_up_area_sqft"), 75000)
-    carpet = positive_int(data.get("total_carpet_area_sqft"), int(bua * 0.72))
+    project_type = normalize_project_type(data.get("project_type"))
+    profile = property_profile(project_type)
+    total_units = positive_int(data.get("total_units"), profile["default_units"])
+    bua = positive_int(data.get("total_built_up_area_sqft"), profile["default_bua"])
+    carpet = positive_int(data.get("total_carpet_area_sqft"), int(bua * profile["default_carpet_factor"]))
 
     units = data.get("unit_types")
     if not isinstance(units, list) or not units:
-        units = [
-            {"type": "2BHK", "count": max(total_units * 2 // 3, 1), "carpet_area_sqft": 850},
-            {"type": "3BHK", "count": max(total_units // 3, 1), "carpet_area_sqft": 1200},
-        ]
+        units = default_unit_mix(project_type, total_units)
 
     normalized_units = []
     for item in units[:6]:
@@ -1358,18 +1713,42 @@ def normalize_analysis(data, project_name):
         })
 
     review = data.get("drawing_review") if isinstance(data.get("drawing_review"), dict) else {}
+    discipline = str(data.get("drawing_discipline") or "architectural").lower()
+    discipline = discipline if discipline in DRAWING_DISCIPLINES else "architectural"
+    estimate_scope = str(data.get("estimate_scope") or "full_project").lower()
+    estimate_scope = "discipline_only" if estimate_scope == "discipline_only" else "full_project"
+    floor_wise = data.get("floor_wise_areas") if isinstance(data.get("floor_wise_areas"), dict) else {}
+    floor_wise_areas = {
+        "basement": positive_int(floor_wise.get("basement"), 0),
+        "ground": positive_int(floor_wise.get("ground"), 0),
+        "first": positive_int(floor_wise.get("first"), 0),
+        "second": positive_int(floor_wise.get("second"), 0),
+        "terrace": positive_int(floor_wise.get("terrace"), 0),
+        "pool_landscape": positive_int(floor_wise.get("pool_landscape"), 0),
+    }
+    amenities = data.get("luxury_amenities") if isinstance(data.get("luxury_amenities"), dict) else {}
+    luxury_amenities = {key: bool(amenities.get(key)) for key in ["swimming_pool", "sauna", "modular_kitchen", "home_automation", "pergola", "fire_pit", "bar", "gym", "home_theater"]}
+    hvac_units = data.get("hvac_units") if isinstance(data.get("hvac_units"), list) else []
     result = {
-        "building_type": str(data.get("building_type") or "Residential Tower"),
-        "total_floors": positive_int(data.get("total_floors"), 15),
+        "building_type": str(data.get("building_type") or profile["label"]),
+        "project_type": project_type,
+        "drawing_discipline": discipline,
+        "estimate_scope": estimate_scope,
+        "scope_reason": str(data.get("scope_reason") or "Scope generated from AI extraction and selected project type."),
+        "total_floors": positive_int(data.get("total_floors"), profile["default_floors"]),
         "total_units": total_units,
         "unit_types": normalized_units,
         "total_built_up_area_sqft": bua,
         "total_carpet_area_sqft": carpet,
-        "plot_area_sqft": positive_int(data.get("plot_area_sqft"), int(bua * 0.16)),
+        "plot_area_sqft": positive_int(data.get("plot_area_sqft"), int(bua * profile["default_plot_factor"])),
         "structure_type": str(data.get("structure_type") or "RCC Frame"),
         "basement_levels": positive_int(data.get("basement_levels"), 0),
         "parking_spaces": positive_int(data.get("parking_spaces"), total_units),
-        "lift_count": positive_int(data.get("lift_count"), max(2, total_units // 25)),
+        "lift_count": positive_int(data.get("lift_count"), profile["default_lift_count"]),
+        "discipline_takeoff": data.get("discipline_takeoff") if isinstance(data.get("discipline_takeoff"), dict) else {"equipment": [], "total_tr": 0, "total_cfm": 0},
+        "hvac_units": hvac_units,
+        "floor_wise_areas": floor_wise_areas,
+        "luxury_amenities": luxury_amenities,
         "confidence": str(data.get("confidence") or "medium").lower(),
         "ai_source": data.get("ai_source") or "claude",
         "drawing_review": {
@@ -1391,7 +1770,7 @@ def normalize_analysis(data, project_name):
 def analyze_drawing_with_ai(project):
     file_data = project_file_bytes(project)
     if not file_data:
-        return fallback_analysis(project["name"], "Drawing file was not available to the AI analyzer.")
+        return fallback_analysis(project["name"], "Drawing file was not available to the AI analyzer.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
     mime = project["file_mime"] or "application/pdf"
     b64 = base64.b64encode(file_data).decode("utf-8")
@@ -1400,19 +1779,19 @@ def analyze_drawing_with_ai(project):
         return analyze_with_gemini(project, mime, b64)
     if provider == "anthropic":
         return analyze_with_anthropic(project, mime, b64)
-    return fallback_analysis(project["name"], "No AI API key is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY in Render.")
+    return fallback_analysis(project["name"], "No AI API key is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY in Render.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
 def analyze_with_gemini(project, mime, b64):
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        return fallback_analysis(project["name"], "GEMINI_API_KEY is not configured, so the app used a demo fallback.")
+        return fallback_analysis(project["name"], "GEMINI_API_KEY is not configured, so the app used a demo fallback.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
     payload = {
         "contents": [{
             "role": "user",
             "parts": [
                 {"inline_data": {"mime_type": mime, "data": b64}},
-                {"text": NIRMAN_EXTRACTION_PROMPT},
+                {"text": f"Selected property type from user: {project['project_type'] if 'project_type' in project.keys() else 'residential_tower'}.\n\n{NIRMAN_EXTRACTION_PROMPT}"},
             ],
         }],
         "generationConfig": {
@@ -1434,14 +1813,15 @@ def analyze_with_gemini(project, mime, b64):
         text = "".join(part.get("text", "") for part in parts)
         data = parse_ai_json(text)
         data["ai_source"] = "gemini"
+        data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
         return normalize_analysis(data, project["name"])
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError, IndexError) as exc:
-        return fallback_analysis(project["name"], f"Gemini analysis failed: {exc}")
+        return fallback_analysis(project["name"], f"Gemini analysis failed: {exc}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
 def analyze_with_anthropic(project, mime, b64):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
-        return fallback_analysis(project["name"], "ANTHROPIC_API_KEY is not configured, so the app used a demo fallback.")
+        return fallback_analysis(project["name"], "ANTHROPIC_API_KEY is not configured, so the app used a demo fallback.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
     if mime == "application/pdf":
         drawing_block = {"type": "document", "source": {"type": "base64", "media_type": mime, "data": b64}}
@@ -1456,7 +1836,7 @@ def analyze_with_anthropic(project, mime, b64):
             "role": "user",
             "content": [
                 drawing_block,
-                {"type": "text", "text": NIRMAN_EXTRACTION_PROMPT},
+                {"type": "text", "text": f"Selected property type from user: {project['project_type'] if 'project_type' in project.keys() else 'residential_tower'}.\n\n{NIRMAN_EXTRACTION_PROMPT}"},
             ],
         }],
     }
@@ -1477,17 +1857,127 @@ def analyze_with_anthropic(project, mime, b64):
         text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
         data = parse_ai_json(text)
         data["ai_source"] = "claude"
+        data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
         return normalize_analysis(data, project["name"])
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
-        return fallback_analysis(project["name"], f"Claude analysis failed: {exc}")
+        return fallback_analysis(project["name"], f"Claude analysis failed: {exc}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+
+def calculate_discipline_estimate(analysis, takeoffs=None):
+    discipline = analysis.get("drawing_discipline") or "hvac"
+    q = (takeoffs or {}).get("quantities") or {}
+
+    def line(desc, qty, unit, rate, gst_rate=18, source="Discipline-specific seed rate"):
+        qty = round(float(qty or 0), 2)
+        rate = round(float(rate or 0), 2)
+        return {"desc": desc, "qty": qty, "unit": unit, "rate": rate, "gst_rate": gst_rate, "amount": int(qty * rate), "source": source}
+
+    if discipline == "hvac":
+        hvac = analysis.get("discipline_takeoff") if isinstance(analysis.get("discipline_takeoff"), dict) else {}
+        equipment = hvac.get("equipment") if isinstance(hvac.get("equipment"), list) else []
+        if not equipment and isinstance(analysis.get("hvac_units"), list):
+            equipment = [{"type": u.get("type") or "indoor unit", "qty": u.get("qty") or 1, "hp": u.get("hp_rating") or u.get("hp") or 0, "tr": u.get("tr") or 0, "cfm": u.get("cfm") or 0, "notes": u.get("notes") or u.get("room") or ""} for u in analysis["hvac_units"] if isinstance(u, dict)]
+        total_tr = safe_float(hvac.get("total_tr"), 0, 0)
+        total_cfm = safe_float(hvac.get("total_cfm"), 0, 0)
+        if not total_tr:
+            total_tr = sum(safe_int(e.get("qty"), 1, 1) * safe_float(e.get("tr"), 0, 0) for e in equipment)
+        if not total_cfm:
+            total_cfm = sum(safe_int(e.get("qty"), 1, 1) * safe_float(e.get("cfm"), 0, 0) for e in equipment)
+        cassette_qty = sum(safe_int(e.get("qty"), 1, 1) for e in equipment if "cassette" in str(e.get("type", "")).lower())
+        ductable_qty = sum(safe_int(e.get("qty"), 1, 1) for e in equipment if "duct" in str(e.get("type", "")).lower())
+        hiwall_qty = sum(safe_int(e.get("qty"), 1, 1) for e in equipment if "wall" in str(e.get("type", "")).lower())
+        indoor_qty = max(cassette_qty + ductable_qty + hiwall_qty, len(equipment) or 1)
+        total_tr = total_tr or max(indoor_qty * 1.65, 1.65)
+        divisions = {
+            "13_hvac": {
+                "name": "HVAC Works",
+                "items": [
+                    line("VRF/ductable indoor units supply and installation", indoor_qty, "each", 85000),
+                    line("Outdoor units / condenser allowance", max(1, round(total_tr / 15, 2)), "set", 650000),
+                    line("Copper piping, insulation and refrigerant", total_tr, "TR", 18500),
+                    line("Drain piping, supports and sleeves", indoor_qty, "point", 8500),
+                    line("Ducting, grilles and diffusers allowance", max(total_cfm, total_tr * 350), "CFM", 68),
+                    line("Testing, balancing and commissioning", total_tr, "TR", 6500),
+                ],
+            },
+            "16_overheads": {
+                "name": "Professional Fees, Contingency and Overheads",
+                "items": [],
+            },
+        }
+    elif discipline == "electrical":
+        bua = analysis.get("total_built_up_area_sqft", 10000)
+        divisions = {"11_electrical": {"name": "Electrical Works", "items": [line("Electrical conduiting and wiring", bua, "sqft", 95, 18), line("DBs, switches and point wiring allowance", bua, "sqft", 80, 18), line("Testing and commissioning", 1, "lump sum", max(75000, bua * 8), 18)]}, "16_overheads": {"name": "Professional Fees, Contingency and Overheads", "items": []}}
+    elif discipline == "plumbing":
+        bua = analysis.get("total_built_up_area_sqft", 10000)
+        divisions = {"10_plumbing": {"name": "Plumbing and Sanitary", "items": [line("Water supply and drainage piping", bua, "sqft", 75, 18), line("Fixtures and CP fittings allowance", max(analysis.get("total_units", 1), 1), "unit", 45000, 18), line("Testing and commissioning", 1, "lump sum", max(60000, bua * 6), 18)]}, "16_overheads": {"name": "Professional Fees, Contingency and Overheads", "items": []}}
+    else:
+        bua = analysis.get("total_built_up_area_sqft", 10000)
+        divisions = {"13_special_discipline": {"name": DRAWING_DISCIPLINES.get(discipline, "Discipline Works"), "items": [line("Discipline scope allowance", bua, "sqft", 150, 18), line("Testing and commissioning", 1, "lump sum", max(50000, bua * 5), 18)]}, "16_overheads": {"name": "Professional Fees, Contingency and Overheads", "items": []}}
+
+    direct_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key != "16_overheads")
+    divisions["16_overheads"]["items"] = [
+        line("Design coordination and shop drawings", 1, "lump sum", direct_total * 0.035, 18),
+        line("Contractor overheads and contingency", 1, "lump sum", direct_total * 0.085, 18),
+    ]
+    subtotal = sum(sum(i["amount"] for i in div["items"]) for div in divisions.values())
+    for div_key, div in divisions.items():
+        for index, item in enumerate(div["items"], start=1):
+            item.setdefault("code", f"NIR-{discipline.upper()}-{div_key.split('_')[0]}-{index:02d}")
+        div["amount"] = sum(i["amount"] for i in div["items"])
+    gst = int(subtotal * 0.18)
+    return {
+        "currency": "INR",
+        "built_up_area": analysis.get("total_built_up_area_sqft", 0),
+        "cost_per_sqft": int(subtotal / max(analysis.get("total_built_up_area_sqft", 1), 1)),
+        "subtotal": subtotal,
+        "gst_12pct": gst,
+        "gst_breakup": {"taxable_value": subtotal, "cgst_6pct": 0, "sgst_6pct": 0, "igst_12pct": gst, "total_gst": gst},
+        "total_with_gst": subtotal + gst,
+        "divisions": divisions,
+        "rates_source": "Discipline-specific Delhi NCR seed rates",
+        "disclaimer": f"Discipline-only {DRAWING_DISCIPLINES.get(discipline, discipline)} estimate. This is not a full building BOQ.",
+    }
 
 def calculate_estimate(analysis, takeoffs=None):
-    bua = analysis.get("total_built_up_area_sqft", 75000)
+    if analysis.get("estimate_scope") == "discipline_only":
+        return calculate_discipline_estimate(analysis, takeoffs)
+
+    project_type = normalize_project_type(analysis.get("project_type"))
+    category = cost_profile(project_type)
+    is_villa = project_type == "villa" or "villa" in str(analysis.get("building_type", "")).lower() or "bungalow" in str(analysis.get("building_type", "")).lower()
+    floor_wise = analysis.get("floor_wise_areas") if isinstance(analysis.get("floor_wise_areas"), dict) else {}
+    physical_bua = safe_float(analysis.get("total_built_up_area_sqft"), 75000, 1)
+    basement_area = safe_float(floor_wise.get("basement"), 0, 0)
+    ground_area = safe_float(floor_wise.get("ground"), 0, 0)
+    first_area = safe_float(floor_wise.get("first"), 0, 0)
+    second_area = safe_float(floor_wise.get("second"), 0, 0)
+    terrace_area = safe_float(floor_wise.get("terrace"), 0, 0)
+    villa_floor_area = basement_area + ground_area + first_area + second_area + terrace_area
+    if is_villa and villa_floor_area > 0:
+        physical_bua = villa_floor_area
+        bua = basement_area * 1.3 + ground_area + first_area + second_area + terrace_area * 0.35
+    else:
+        bua = physical_bua
     units = analysis.get("total_units", 60)
     lifts = analysis.get("lift_count", 3)
     parking = analysis.get("parking_spaces", 60)
     q = (takeoffs or {}).get("quantities") or {}
     rates = rate_lookup_map()
+    rcc_factor = category["rcc_factor"]
+    steel_factor = category["steel_factor"]
+    mep_electrical_rate = category["electrical_rate"]
+    plumbing_per_unit = category.get("plumbing_per_unit", 23500)
+    plumbing_sqft_rate = category.get("plumbing_sqft_rate", 0)
+    fire_rate = category["fire_rate"]
+    facade_factor = category["facade_factor"]
+    glazing_factor = category["glazing_factor"]
+    flooring_factor = category["flooring_factor"]
+    finish_multiplier = category["finish_multiplier"]
+    door_qty = units * category.get("door_factor", 8) if category.get("door_factor") else max(6, int(physical_bua / category.get("door_area_divisor", 2200)))
+    sanitary_qty = units * category.get("sanitary_factor", 2.4) if category.get("sanitary_factor") else max(2, int(physical_bua / category.get("sanitary_area_divisor", 2200)))
+    plumbing_qty = units if plumbing_per_unit else physical_bua
+    plumbing_rate = plumbing_per_unit if plumbing_per_unit else plumbing_sqft_rate
+    lift_qty = lifts if not is_villa else max(lifts, 0)
 
     def item(desc, qty, unit, rate, gst_rate=12):
         rate = rates.get(ESTIMATE_RATE_ALIASES.get(desc, desc), rate)
@@ -1523,8 +2013,8 @@ def calculate_estimate(analysis, takeoffs=None):
         "04_structure": {
             "name": "Superstructure RCC Frame",
             "items": [
-                item("RCC columns, beams and slabs", (q.get("slab_area_sqft") or bua) * 0.105, "cum", 8400),
-                item("TMT reinforcement Fe500D", bua * 8.5, "kg", 82),
+                item("RCC columns, beams and slabs", (q.get("slab_area_sqft") or bua) * rcc_factor, "cum", 8400),
+                item("TMT reinforcement Fe500D", bua * steel_factor, "kg", 82),
                 item("Centering, shuttering and staging", bua * 1.08, "sqft", 115),
             ],
         },
@@ -1539,24 +2029,24 @@ def calculate_estimate(analysis, takeoffs=None):
         "06_doors_windows": {
             "name": "Doors, Windows and Glazing",
             "items": [
-                item("Flush doors with hardware", units * 8, "each", 11800),
-                item("Aluminium/uPVC windows with glazing", q.get("window_glazing_area_sqft") or bua * 0.105, "sqft", 520),
-                item("Common area fire-rated and service doors", units * 1.2, "each", 18500),
+                item("Flush doors with hardware", door_qty, "each", 11800),
+                item("Aluminium/uPVC windows with glazing", q.get("window_glazing_area_sqft") or bua * glazing_factor, "sqft", 520),
+                item("Common area fire-rated and service doors", max(1, door_qty * 0.15), "each", 18500),
             ],
         },
         "07_finishes": {
             "name": "Interior Finishes",
             "items": [
-                item("Internal plaster and putty base", q.get("plaster_paint_area_sqft") or bua * 1.8, "sqft", 42),
-                item("Vitrified tile flooring with skirting", q.get("flooring_area_sqft") or bua * 0.72, "sqft", 165),
-                item("Internal painting, primer and finish coats", q.get("plaster_paint_area_sqft") or bua * 1.75, "sqft", 36),
+                item("Internal plaster and putty base", q.get("plaster_paint_area_sqft") or bua * 1.8, "sqft", 42 * finish_multiplier),
+                item("Vitrified tile flooring with skirting", q.get("flooring_area_sqft") or bua * flooring_factor, "sqft", 165 * finish_multiplier),
+                item("Internal painting, primer and finish coats", q.get("plaster_paint_area_sqft") or bua * 1.75, "sqft", 36 * finish_multiplier),
             ],
         },
         "08_facade": {
             "name": "Exterior Finishes and Facade",
             "items": [
-                item("External plaster and waterproof putty", q.get("facade_area_sqft") or bua * 0.38, "sqft", 68),
-                item("Weatherproof exterior paint", q.get("facade_area_sqft") or bua * 0.38, "sqft", 48),
+                item("External plaster and waterproof putty", q.get("facade_area_sqft") or bua * facade_factor, "sqft", 68),
+                item("Weatherproof exterior paint", q.get("facade_area_sqft") or bua * facade_factor, "sqft", 48),
                 item("Balcony railing and facade features", units * 70, "rft", 950),
             ],
         },
@@ -1571,15 +2061,15 @@ def calculate_estimate(analysis, takeoffs=None):
         "10_plumbing": {
             "name": "Plumbing and Sanitary",
             "items": [
-                item("CPVC/UPVC water supply and soil piping", units, "unit", 23500),
-                item("Sanitary fixtures and CP fittings", units * 2.4, "toilet", 28500),
+                item("CPVC/UPVC water supply and soil piping", plumbing_qty, "unit" if plumbing_per_unit else "sqft BUA", plumbing_rate),
+                item("Sanitary fixtures and CP fittings", sanitary_qty, "toilet/fixture", 28500),
                 item("UG tanks, pumps and terrace tanks", bua, "sqft BUA", 42),
             ],
         },
         "11_electrical": {
             "name": "Electrical Works",
             "items": [
-                item("Conduiting, wiring and DBs", bua, "sqft BUA", 118),
+                item("Conduiting, wiring and DBs", bua, "sqft BUA", mep_electrical_rate),
                 item("Switches, fixtures and apartment panels", units, "unit", 36000),
                 item("Transformer, DG integration and LT panels", bua, "sqft BUA", 48),
             ],
@@ -1587,7 +2077,7 @@ def calculate_estimate(analysis, takeoffs=None):
         "12_fire": {
             "name": "Fire Fighting and Life Safety",
             "items": [
-                item("Hydrant, sprinkler and fire piping", bua, "sqft BUA", 52),
+                item("Hydrant, sprinkler and fire piping", bua, "sqft BUA", fire_rate),
                 item("Fire detection and alarm system", bua, "sqft BUA", 24),
                 item("Staircase pressurization and signage", analysis.get("total_floors", 15), "floor", 85000),
             ],
@@ -1597,15 +2087,15 @@ def calculate_estimate(analysis, takeoffs=None):
             "items": [
                 item("Basement ventilation and jet fans", analysis.get("basement_levels", 1) or 1, "level", 850000),
                 item("Shaft ventilation and exhaust systems", units, "unit", 4200),
-                item("Common services mechanical supports", bua, "sqft BUA", 18),
+                item("Common services mechanical supports", bua, "sqft BUA", category["hvac_support_rate"]),
             ],
         },
         "14_lifts": {
             "name": "Lifts and Vertical Transportation",
             "items": [
-                item("Passenger lift including installation", lifts, "each", 1250000),
-                item("Lift civil interface and electrical provisions", lifts, "each", 180000),
-                item("Annual testing and commissioning allowance", lifts, "each", 65000),
+                item("Passenger lift including installation", lift_qty, "each", 1250000),
+                item("Lift civil interface and electrical provisions", lift_qty, "each", 180000),
+                item("Annual testing and commissioning allowance", lift_qty, "each", 65000),
             ],
         },
         "15_external": {
@@ -1616,11 +2106,86 @@ def calculate_estimate(analysis, takeoffs=None):
                 item("Parking marking, EV provisions and signage", parking, "bay", 42000),
             ],
         },
+        "17_luxury_amenities": {
+            "name": "Villa Luxury Amenities",
+            "items": [],
+        },
+        "18_property_specific": {
+            "name": "Property Type Specific Scope",
+            "items": [],
+        },
         "16_overheads": {
             "name": "Professional Fees, Contingency and Overheads",
             "items": [],
         },
     }
+
+    if is_villa:
+        amenities = analysis.get("luxury_amenities") if isinstance(analysis.get("luxury_amenities"), dict) else {}
+        pool_area = safe_float(floor_wise.get("pool_landscape"), 0, 0)
+        amenity_items = []
+        if amenities.get("swimming_pool") or pool_area:
+            amenity_items.append(item("Swimming pool civil, filtration and waterproofing", max(pool_area, 350), "sqft", 2850, 18))
+        if amenities.get("sauna"):
+            amenity_items.append(item("Sauna cabin and steam equipment", 1, "set", 650000, 18))
+        if amenities.get("modular_kitchen"):
+            amenity_items.append(item("Premium modular kitchen and appliances allowance", 1, "set", 1200000, 18))
+        if amenities.get("home_automation"):
+            amenity_items.append(item("Home automation, security and AV control", physical_bua, "sqft BUA", 180, 18))
+        if amenities.get("pergola"):
+            amenity_items.append(item("Pergola / outdoor covered seating", 1, "set", 450000, 18))
+        if amenities.get("fire_pit"):
+            amenity_items.append(item("Outdoor fire pit and seating feature", 1, "set", 220000, 18))
+        if amenities.get("bar"):
+            amenity_items.append(item("Bar counter, back bar and services", 1, "set", 550000, 18))
+        if amenities.get("gym"):
+            amenity_items.append(item("Home gym fit-out allowance", 1, "set", 500000, 18))
+        if amenities.get("home_theater"):
+            amenity_items.append(item("Home theater acoustic and AV allowance", 1, "set", 900000, 18))
+        divisions["17_luxury_amenities"]["items"] = amenity_items
+    if not divisions["17_luxury_amenities"]["items"]:
+        divisions.pop("17_luxury_amenities", None)
+
+    category_items = []
+    if project_type == "group_housing":
+        category_items = [
+            item("Clubhouse and common amenity allowance", max(3000, physical_bua * 0.025), "sqft", 2200, 18),
+            item("STP, water treatment and pump room systems", physical_bua, "sqft BUA", 38, 18),
+            item("Internal roads, security gate and society services", physical_bua, "sqft BUA", 52, 18),
+        ]
+    elif project_type == "commercial_office":
+        category_items = [
+            item("Central HVAC plant and fresh air system allowance", physical_bua, "sqft BUA", 210, 18),
+            item("Fire command, BMS and access control", physical_bua, "sqft BUA", 95, 18),
+            item("Office lobby, common toilets and core finishes", max(physical_bua * 0.12, 2500), "sqft", 1850, 18),
+        ]
+    elif project_type == "mall_retail":
+        category_items = [
+            item("Escalators and travelator allowance", max(2, int(physical_bua / 45000)), "each", 4200000, 18),
+            item("Food court, public toilets and retail back-of-house", max(physical_bua * 0.10, 6000), "sqft", 2400, 18),
+            item("Mall atrium, signage, wayfinding and common lighting", physical_bua, "sqft BUA", 165, 18),
+        ]
+    elif project_type == "banquet_hall":
+        category_items = [
+            item("Banquet acoustic ceiling and decorative lighting", max(physical_bua * 0.55, 8000), "sqft", 1250, 18),
+            item("Commercial kitchen and service back-of-house", max(physical_bua * 0.12, 2500), "sqft", 3200, 18),
+            item("Stage, AV, sound and event power systems", 1, "lump sum", max(1800000, physical_bua * 85), 18),
+        ]
+    elif project_type == "hotel_hospitality":
+        category_items = [
+            item("Guest room interior fit-out allowance", max(units, 1), "key", 520000, 18),
+            item("Commercial kitchen, laundry and BOH services", physical_bua, "sqft BUA", 115, 18),
+            item("Reception, restaurant and public area finishes", max(physical_bua * 0.16, 5000), "sqft", 2600, 18),
+        ]
+    elif project_type == "industrial_warehouse":
+        category_items = [
+            item("PEB/warehouse roofing and wall cladding allowance", physical_bua, "sqft BUA", 380, 18),
+            item("Dock levellers, shutters and loading bays", max(2, int(physical_bua / 25000)), "bay", 850000, 18),
+            item("Heavy duty FM2/VDF industrial floor finish", physical_bua, "sqft BUA", 210, 18),
+        ]
+    divisions["18_property_specific"]["items"] = category_items
+    if not divisions["18_property_specific"]["items"]:
+        divisions.pop("18_property_specific", None)
 
     direct_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key != "16_overheads")
     divisions["16_overheads"]["items"] = [
@@ -1637,18 +2202,18 @@ def calculate_estimate(analysis, takeoffs=None):
             line.setdefault("gst_rate", 12)
         div["amount"] = sum(i["amount"] for i in div["items"])
     total = subtotal
-    gst = int(total * 0.12)
+    gst = int(sum(sum(i["amount"] * (i.get("gst_rate", 12) / 100) for i in div["items"]) for div in divisions.values()))
 
     return {
         "currency": "INR",
-        "built_up_area": bua,
-        "cost_per_sqft": int(total / bua),
+        "built_up_area": physical_bua,
+        "cost_per_sqft": int(total / max(physical_bua, 1)),
         "subtotal": subtotal,
         "gst_12pct": gst,
         "gst_breakup": {
             "taxable_value": subtotal,
-            "cgst_6pct": int(total * 0.06),
-            "sgst_6pct": int(total * 0.06),
+            "cgst_6pct": int(gst / 2),
+            "sgst_6pct": int(gst / 2),
             "igst_12pct": 0,
             "total_gst": gst,
         },
