@@ -347,28 +347,28 @@ a{text-decoration:none;color:inherit}
 .stage-sub{font-size:.78rem;color:var(--dim);margin-top:4px}
 
 /* Guided project workflow */
-.project-cockpit{display:grid;grid-template-columns:300px 1fr;gap:28px;align-items:start}
-.workflow-rail{position:sticky;top:24px;min-height:calc(100vh - 220px);padding:28px 0;border-right:1px solid var(--border)}
+.project-cockpit{display:grid;grid-template-columns:minmax(230px,270px) minmax(0,1fr);gap:18px;align-items:start}
+.workflow-rail{position:sticky;top:0;max-height:calc(100vh - 28px);overflow:auto;min-height:calc(100vh - 220px);padding:18px 0;border-right:1px solid var(--border)}
 .workflow-kicker{font-family:var(--mono);font-size:.54rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:18px}
-.workflow-title{font-family:var(--syne);font-size:2.15rem;font-weight:800;line-height:1.05;letter-spacing:0;margin-bottom:12px}
-.workflow-subtitle{font-size:.9rem;line-height:1.7;color:var(--dim);max-width:230px;margin-bottom:34px}
+.workflow-title{font-family:var(--syne);font-size:clamp(1.45rem,2vw,1.9rem);font-weight:800;line-height:1.05;letter-spacing:0;margin-bottom:10px}
+.workflow-subtitle{font-size:.82rem;line-height:1.6;color:var(--dim);max-width:230px;margin-bottom:22px}
 .workflow-step-list{display:grid;gap:4px}
-.workflow-step{display:grid;grid-template-columns:36px 1fr;gap:16px;align-items:start;padding:12px 18px 12px 0;background:none;border:none;color:var(--dimmer);text-align:left;transition:color .2s,transform .2s}
+.workflow-step{display:grid;grid-template-columns:30px 1fr;gap:12px;align-items:start;padding:8px 12px 8px 0;background:none;border:none;color:var(--dimmer);text-align:left;transition:color .2s,transform .2s}
 .workflow-step:hover{color:var(--white);transform:translateX(3px)}
 .workflow-step.active{color:var(--white)}
 .workflow-step.done{color:var(--accent)}
 .workflow-step.locked{opacity:.35;cursor:not-allowed}
-.workflow-step-num{font-family:var(--syne);font-size:1.6rem;font-weight:400;line-height:1}
-.workflow-step-name{font-family:var(--syne);font-size:1rem;font-weight:500;line-height:1.2}
+.workflow-step-num{font-family:var(--syne);font-size:1.28rem;font-weight:400;line-height:1}
+.workflow-step-name{font-family:var(--syne);font-size:.92rem;font-weight:500;line-height:1.2}
 .workflow-step-note{font-size:.72rem;color:var(--dim);line-height:1.45;margin-top:5px}
 .workflow-content{min-width:0}
 .workflow-panel{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);overflow:hidden}
-.workflow-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:28px;padding:28px 32px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(126,184,201,.05),rgba(255,255,255,0))}
+.workflow-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:18px 24px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,rgba(126,184,201,.05),rgba(255,255,255,0))}
 .workflow-panel-label{font-family:var(--mono);font-size:.54rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:10px}
-.workflow-panel-title{font-family:var(--syne);font-size:1.55rem;font-weight:800;line-height:1.15;letter-spacing:0}
-.workflow-panel-copy{font-size:.86rem;color:var(--dim);line-height:1.65;max-width:640px;margin-top:10px}
+.workflow-panel-title{font-family:var(--syne);font-size:clamp(1.2rem,2.1vw,1.7rem);font-weight:800;line-height:1.15;letter-spacing:0}
+.workflow-panel-copy{font-size:.82rem;color:var(--dim);line-height:1.55;max-width:640px;margin-top:6px}
 .workflow-panel-meta{font-family:var(--mono);font-size:.58rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);text-align:right;white-space:nowrap}
-.workflow-panel-body{padding:28px 32px}
+.workflow-panel-body{padding:20px 24px}
 .workflow-footer{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 0 0;margin-top:24px;background:linear-gradient(180deg,rgba(8,8,8,0),var(--bg) 30%)}
 .workflow-footer-left,.workflow-footer-right{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 .workflow-hint{font-size:.8rem;color:var(--dim);line-height:1.45}
@@ -430,16 +430,26 @@ a{text-decoration:none;color:inherit}
 .swap-metric{background:var(--bg);padding:16px}
 .swap-metric-label{font-family:var(--mono);font-size:.5rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
 .swap-metric-value{font-family:var(--syne);font-size:1.45rem;font-weight:800}
-.editable-model{display:grid;grid-template-columns:320px 1fr 320px;gap:24px}
+.editable-model{display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);grid-template-areas:"controls model" "controls stats";gap:16px;align-items:start}
+.editable-model>.swap-card{grid-area:controls;max-height:calc(100vh - 240px);overflow:auto}
+.editable-model>.massing-card{grid-area:model;min-height:clamp(360px,56vh,620px)}
+.editable-model>.massing-card canvas{min-height:clamp(360px,56vh,620px)}
+.editable-model>.model-notes{grid-area:stats;grid-template-columns:repeat(4,minmax(0,1fr))}
+.editable-model>.model-notes .disclaimer{grid-column:1/-1}
+.editable-model .form-field{margin-bottom:11px}
+.editable-model input[type="range"]{width:100%;accent-color:var(--accent)}
 .model-controls{display:grid;gap:16px}
 .model-stats{display:grid;gap:1px;background:var(--border);border:1px solid var(--border)}
-.model-impact{background:var(--accent-bg);border:1px solid rgba(126,184,201,.2);padding:20px;margin-top:18px}
-.model-impact-value{font-family:var(--syne);font-size:1.9rem;font-weight:800;color:var(--accent)}
+.model-impact{background:var(--accent-bg);border:1px solid rgba(126,184,201,.2);padding:14px;margin-top:12px}
+.model-impact-value{font-family:var(--syne);font-size:1.35rem;font-weight:800;color:var(--accent)}
 .forecast-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:22px}
 .forecast-tabs{display:flex;gap:8px;flex-wrap:wrap}
 .forecast-tab{border:1px solid var(--border);background:var(--surface);color:var(--dim);padding:9px 14px;font-family:var(--mono);font-size:.56rem;letter-spacing:.12em;text-transform:uppercase}
 .forecast-tab.active{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
 .forecast-chart-pro{height:360px;border:1px solid var(--border);background:linear-gradient(180deg,rgba(126,184,201,.03),rgba(255,255,255,0)),var(--bg);padding:26px;position:relative;overflow:hidden}
+.forecast-chart-title{position:absolute;left:26px;top:22px;z-index:2}
+.forecast-chart-name{font-family:var(--syne);font-size:1.05rem;font-weight:700;color:var(--white)}
+.forecast-chart-note{font-size:.72rem;color:var(--dim);margin-top:4px}
 .forecast-gridline{position:absolute;left:26px;right:26px;height:1px;background:var(--border)}
 .forecast-line{position:absolute;left:26px;right:26px;bottom:58px;height:220px}
 .forecast-point{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent);transform:translate(-50%,50%);box-shadow:0 0 0 5px rgba(126,184,201,.12)}
@@ -451,6 +461,12 @@ a{text-decoration:none;color:inherit}
 .forecast-card-value{font-family:var(--syne);font-size:1.35rem;font-weight:800}
 .forecast-material-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .forecast-material{border:1px solid var(--border);background:var(--surface);padding:16px}
+.forecast-material.active{border-color:var(--accent);background:var(--accent-bg)}
+.material-selector{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 0 18px}
+.material-tab{border:1px solid var(--border);background:var(--surface);color:var(--dim);padding:12px;text-align:left;cursor:pointer;border-radius:var(--radius)}
+.material-tab.active{border-color:var(--accent);background:var(--accent-bg);color:var(--white)}
+.material-tab strong{display:block;font-family:var(--syne);font-size:.86rem;color:inherit}
+.material-tab span{display:block;font-size:.68rem;color:var(--dim);margin-top:4px}
 .forecast-material-top{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
 .forecast-confidence{font-family:var(--mono);font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;padding:4px 7px;border:1px solid rgba(126,184,201,.25);color:var(--accent)}
 .forecast-track{height:5px;background:var(--border);overflow:hidden}
@@ -492,7 +508,7 @@ a{text-decoration:none;color:inherit}
 .tool-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .tool-pill{border:1px solid var(--border);background:var(--bg);color:var(--dim);font-family:var(--mono);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;padding:7px 9px}
 .tool-pill.active{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
-.drawing-workspace{display:grid;grid-template-columns:1fr 280px;gap:16px}
+.drawing-workspace{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:14px}
 .region-inspector-panel{border:1px solid var(--border);background:var(--surface);padding:16px;border-radius:var(--radius)}
 .region-inspector-empty{border:1px dashed var(--border);padding:20px;text-align:center;color:var(--dim);font-size:.82rem;line-height:1.55}
 .change-explainer{border:1px solid rgba(126,184,201,.22);background:rgba(126,184,201,.05);padding:20px;border-radius:var(--radius)}
@@ -654,8 +670,16 @@ a{text-decoration:none;color:inherit}
 .page-thumb.active{border-color:var(--accent);background:var(--accent-bg)}
 .thumb-page{font-family:var(--syne);font-weight:800;color:var(--white)}
 .thumb-label{font-family:var(--mono);font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:4px}
-.sheet-table-wrap{overflow:auto;border:1px solid var(--border);background:var(--surface)}
-.drawing-stage{display:grid;grid-template-columns:360px 1fr;gap:24px}
+.sheet-table-wrap{overflow:auto;border:1px solid var(--border);background:var(--surface);max-height:235px}
+.sheet-guide{font-size:.78rem;color:var(--dim);line-height:1.5;padding:0 14px 14px}
+.drawing-stage{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px}
+.drawing-review-shell{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px}
+.page-thumb-sidebar{display:grid;gap:10px;align-content:start;border:1px solid var(--border);background:var(--surface);padding:10px;border-radius:var(--radius);max-height:clamp(420px,62vh,720px);overflow:auto}
+.page-thumb-mini{height:82px;border:1px solid var(--border);background:var(--bg);color:var(--dim);display:grid;place-items:center;text-align:center;cursor:pointer;border-radius:var(--radius);padding:8px}
+.page-thumb-mini.active{border-color:var(--accent);background:var(--accent-bg);color:var(--white)}
+.page-thumb-mini strong{display:block;font-family:var(--syne);font-size:1.15rem}
+.page-thumb-mini span{display:block;font-family:var(--mono);font-size:.42rem;letter-spacing:.1em;text-transform:uppercase;margin-top:4px;color:var(--dim)}
+.page-thumb-mini small{display:block;font-family:var(--mono);font-size:.38rem;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-top:4px}
 .sheet-list{display:grid;gap:10px}
 .sheet-chip{border:1px solid var(--border);background:var(--surface);padding:12px;cursor:pointer;border-radius:var(--radius)}
 .sheet-chip.active{border-color:var(--accent);background:var(--accent-bg)}
@@ -667,7 +691,7 @@ a{text-decoration:none;color:inherit}
 .tag-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .mini-tag{font-family:var(--mono);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border:1px solid var(--border);padding:5px 8px;border-radius:var(--radius)}
 .region-tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}
-.drawing-canvas{position:relative;min-height:560px;border:1px solid var(--border);background:#070707;overflow:hidden;border-radius:var(--radius);touch-action:none}
+.drawing-canvas{position:relative;height:clamp(420px,62vh,720px);min-height:0;border:1px solid var(--border);background:#070707;overflow:auto;border-radius:var(--radius);touch-action:none}
 .drawing-preview{position:absolute;inset:0;width:100%;height:100%;border:0;background:#050505;pointer-events:none}
 .drawing-preview.image{object-fit:contain;padding:18px}
 .drawing-preview-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--dim);font-size:.86rem;padding:28px}
@@ -678,13 +702,28 @@ a{text-decoration:none;color:inherit}
 .region-box.facade_zone{border-color:#fb7185;background:rgba(251,113,133,.12)}
 .region-box.wall,.region-box.wall_zone{border-color:#a78bfa;background:rgba(167,139,250,.12)}
 .region-resize{position:absolute;right:3px;bottom:3px;width:14px;height:14px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;cursor:nwse-resize;opacity:.9}
-.region-editor{display:grid;grid-template-columns:1.1fr .75fr .4fr .6fr .55fr .55fr .55fr .7fr .8fr;gap:10px;margin-top:14px}
+.region-editor{display:grid;grid-template-columns:repeat(9,minmax(82px,1fr));gap:10px;margin-top:14px;max-height:150px;overflow:auto;padding-bottom:4px}
 .takeoff-toolbar{display:flex;justify-content:flex-end;gap:12px;margin-top:16px;flex-wrap:wrap}
 .takeoff-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
 .takeoff-card{background:var(--surface);padding:20px}
 .takeoff-val{font-family:var(--syne);font-size:1.35rem;font-weight:800;color:var(--accent)}
 .takeoff-label{font-family:var(--mono);font-size:.54rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dim);margin-top:8px}
 .takeoff-link{font-family:var(--mono);font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin-top:8px}
+.takeoff-review{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px}
+.takeoff-editor{border:1px solid var(--border);background:var(--surface);border-radius:var(--radius);overflow:hidden}
+.takeoff-editor-row{display:grid;grid-template-columns:1.1fr .7fr .8fr 1fr;gap:12px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)}
+.takeoff-editor-row:last-child{border-bottom:none}
+.takeoff-editor-row.head{font-family:var(--mono);font-size:.52rem;letter-spacing:.13em;text-transform:uppercase;color:var(--dimmer);background:var(--bg)}
+.takeoff-editor-row input{background:var(--bg);border:1px solid var(--border);color:var(--white);padding:8px 10px;border-radius:var(--radius)}
+.takeoff-side{display:grid;gap:14px;align-content:start}
+.report-command{display:grid;grid-template-columns:1.1fr .9fr;gap:24px}
+.report-cover{border:1px solid rgba(126,184,201,.24);background:linear-gradient(135deg,rgba(126,184,201,.11),rgba(255,255,255,.02));padding:30px;border-radius:var(--radius)}
+.report-cover-title{font-family:var(--syne);font-size:2rem;font-weight:800;line-height:1.05;margin:10px 0 14px}
+.report-cover-copy{font-size:.9rem;color:var(--dim);line-height:1.7;max-width:660px}
+.report-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.report-section-card{border:1px solid var(--border);background:var(--surface);padding:18px;border-radius:var(--radius)}
+.report-section-card h4{font-family:var(--syne);font-size:1rem;margin-bottom:10px}
+.report-section-card p{font-size:.8rem;line-height:1.55;color:var(--dim)}
 .print-report{display:none}
 @media print{
   nav,.sidebar,.detail-actions,.stage-track,.upload-zone,.scenario-shell,.boq-toolbar,.report-actions,.back-btn,.notif,.cta-band,footer,#landing-container{display:none!important}
@@ -725,7 +764,9 @@ a{text-decoration:none;color:inherit}
   .workflow-panel-head,.workflow-footer{flex-direction:column;align-items:stretch}
   .workflow-panel-meta{text-align:left}
   .model-layout,.forecast-layout,.approval-hero,.material-swap-layout,.editable-model{grid-template-columns:1fr}
-  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.change-grid{grid-template-columns:1fr}
+  .editable-model{grid-template-areas:"controls" "model" "stats"}
+  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.drawing-review-shell,.change-grid,.takeoff-review,.report-command,.report-section-grid{grid-template-columns:1fr}
+  .material-selector{grid-template-columns:1fr 1fr}
   .stats-row{grid-template-columns:1fr 1fr}
   .analysis-grid{grid-template-columns:1fr}
   .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
@@ -735,6 +776,8 @@ a{text-decoration:none;color:inherit}
   .rate-grid{grid-template-columns:1fr}
   .parcel-grid,.drawing-stage{grid-template-columns:1fr}
   .takeoff-grid{grid-template-columns:1fr 1fr}
+  .page-thumb-sidebar{grid-template-columns:repeat(3,1fr);max-height:none}
+  .takeoff-editor-row{grid-template-columns:1fr}
   .region-editor{grid-template-columns:1fr 1fr}
   .sheet-inspector-grid,.region-tools{grid-template-columns:1fr}
   .cost-summary-grid{grid-template-columns:1fr}
@@ -1813,14 +1856,25 @@ function DrawingIntelligence({projectId,project,onUpdated,notify,onSaved}){
   const [sheets,setSheets]=useState(project.drawing_sheets||[]);
   const [regions,setRegions]=useState(project.drawing_regions||[]);
   const [takeoffs,setTakeoffs]=useState(project.takeoffs||null);
+  const [pageManifest,setPageManifest]=useState(project.page_manifest||null);
   const [active,setActive]=useState(0);
-  const [zoom,setZoom]=useState(100);
+  const [zoom,setZoom]=useState(85);
   const [activeRegion,setActiveRegion]=useState(null);
   const [showTypes,setShowTypes]=useState({room_zone:true,wall_zone:true,facade_zone:true,opening:true,core:true});
   const [loading,setLoading]=useState(false);
   const canvasRef=useRef(null);
   const dragRef=useRef(null);
-  useEffect(()=>{setSheets(project.drawing_sheets||[]);setRegions(project.drawing_regions||[]);setTakeoffs(project.takeoffs||null)},[project]);
+  useEffect(()=>{setSheets(project.drawing_sheets||[]);setRegions(project.drawing_regions||[]);setTakeoffs(project.takeoffs||null);setPageManifest(project.page_manifest||null)},[project]);
+  useEffect(()=>{
+    let alive=true;
+    async function loadPages(){
+      if(!project.file_name)return;
+      const d=await api.get(`/api/projects/${projectId}/pages`);
+      if(alive&&d.success)setPageManifest(d.page_manifest);
+    }
+    loadPages().catch(()=>{});
+    return()=>{alive=false};
+  },[projectId,project.file_name]);
   async function generate(){
     setLoading(true);
     const d=await api.post(`/api/projects/${projectId}/drawing-intelligence`,{});
@@ -1876,6 +1930,8 @@ function DrawingIntelligence({projectId,project,onUpdated,notify,onSaved}){
   const activePage=sheets[active]?.page||1;
   const visibleRegions=regions.map((r,index)=>({r,index})).filter(({r})=>Number(r.sheet_page)===Number(activePage)&&(showTypes[r.region_type]!==false));
   const fileUrl=project.file_name?api.fileUrl(`/api/projects/${projectId}/file`):"";
+  const renderedPage=(pageManifest?.pages||[]).find(p=>Number(p.page)===Number(activePage));
+  const renderedPageUrl=renderedPage?.image_url?api.fileUrl(renderedPage.image_url):"";
   const isImage=(project.file_mime||"").startsWith("image/");
   const isPdf=(project.file_mime||"").includes("pdf");
   const activeSheet=sheets[active]||{};
@@ -1889,11 +1945,13 @@ function DrawingIntelligence({projectId,project,onUpdated,notify,onSaved}){
       ),
       React.createElement("button",{className:"btn-new",onClick:generate,disabled:loading},loading?"Reading...":"Generate Sheets")
     ),
-    React.createElement("div",{className:"sheet-table-wrap"},
+      React.createElement("div",{className:"sheet-table-wrap"},
       sheets.length>0&&React.createElement("div",{className:"thumb-strip"},sheets.map((s,i)=>React.createElement("div",{className:`page-thumb ${i===active?"active":""}`,key:s.id||i,onClick:()=>setActive(i)},
         React.createElement("div",{className:"thumb-page"},s.page),
         React.createElement("div",{className:"thumb-label"},s.thumbnail_label||s.sheet_type)
       ))),
+      pageManifest?.render_error&&React.createElement("div",{className:"workflow-hint",style:{marginBottom:12}},pageManifest.render_error),
+      React.createElement("div",{className:"sheet-guide"},"Page 1, 2 and 3 are sheet-level buckets: site plan, floor plan and elevation/section. Until the AI API is connected, Nirman.AI uses generated defaults from the uploaded file; after the API key is live, these labels and overlays will come from the actual drawing pages."),
       React.createElement("table",{className:"line-items-table"},
         React.createElement("thead",null,React.createElement("tr",null,["Page","Type","Title","Floor","Scale","North","Annotations"].map(h=>React.createElement("th",{key:h},h)))),
         React.createElement("tbody",null,sheets.map((s,i)=>React.createElement("tr",{key:s.id||i},
@@ -1946,46 +2004,58 @@ function DrawingIntelligence({projectId,project,onUpdated,notify,onSaved}){
             React.createElement("button",{className:"tool-pill",onClick:()=>setZoom(z=>Math.max(60,z-20))},"-"),
             React.createElement("span",{className:"tool-pill active"},`${zoom}%`),
             React.createElement("button",{className:"tool-pill",onClick:()=>setZoom(z=>Math.min(180,z+20))},"+"),
-            React.createElement("button",{className:"tool-pill",onClick:()=>setZoom(100)},"Fit")
+            React.createElement("button",{className:"tool-pill",onClick:()=>setZoom(85)},"Fit")
           ),
           React.createElement("div",{className:"tool-group"},
             ["room_zone","wall_zone","facade_zone","opening"].map(type=>React.createElement("button",{className:`tool-pill ${showTypes[type]!==false?"active":""}`,key:type,onClick:()=>toggleType(type)},type.replace("_"," ")))
           )
         ),
-        React.createElement("div",{className:"drawing-workspace"},
-        React.createElement("div",null,
-        React.createElement("div",{className:"drawing-canvas",ref:canvasRef,onPointerMove:moveRegionPointer,onPointerUp:endRegionPointer,onPointerLeave:endRegionPointer},
-          fileUrl&&isImage&&React.createElement("img",{className:"drawing-preview image",src:fileUrl,alt:"Uploaded drawing preview",style:{transform:`scale(${zoom/100})`,transformOrigin:"center center"}}),
-          fileUrl&&isPdf&&React.createElement("iframe",{className:"drawing-preview",src:`${fileUrl}#page=${activePage}&view=FitH`,title:"Uploaded drawing preview",style:{transform:`scale(${zoom/100})`,transformOrigin:"center center"}}),
-          !fileUrl&&React.createElement("div",{className:"drawing-preview-empty"},"Upload a PDF or drawing image to preview it here."),
-          React.createElement("div",{className:"drawing-grid-bg"}),
-          visibleRegions.map(({r,index})=>React.createElement("div",{className:`region-box ${r.region_type}`,key:r.id||index,onClick:e=>{e.stopPropagation();setActiveRegion(index)},onPointerDown:e=>startRegionPointer(e,index,"move"),style:{left:`${r.x}%`,top:`${r.y}%`,width:`${r.w}%`,height:`${r.h}%`,boxShadow:activeRegion===index?"0 0 0 2px var(--white)":"none"}},
-            r.label,
-            React.createElement("span",{className:"region-resize",onPointerDown:e=>startRegionPointer(e,index,"resize")})
-          ))
-        ),
-        React.createElement("div",{className:"workflow-hint",style:{marginTop:10}},"Use zoom, overlay toggles and region cards to inspect what the AI measured. Drag boxes to adjust zones before saving.")
-        ),
-        React.createElement("div",{className:"region-inspector-panel"},
-          React.createElement("div",{className:"info-card-title"},"Region Inspector"),
-          selectedRegion?React.createElement(React.Fragment,null,
-            [["Label",selectedRegion.label],["Type",selectedRegion.region_type],["Sheet",selectedRegion.sheet_page],["Quantity",fmt.sqft(selectedRegion.quantity_sqft)],["Material",selectedRegion.material||"—"],["Confidence",selectedRegion.confidence||"manual"]].map(([k,v])=>React.createElement("div",{className:"info-row",key:k},React.createElement("span",{className:"info-key"},k),React.createElement("span",{className:"info-val"},v))),
-            React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-outline",onClick:()=>setActiveRegion(null)},"Clear"))
-          ):React.createElement("div",{className:"region-inspector-empty"},"Select a region box to inspect its type, quantity, material and confidence.")
-        )
-        ),
-        React.createElement("div",{className:"region-editor"},
-          regions.map((r,i)=>React.createElement(React.Fragment,{key:r.id||i},
-            React.createElement("input",{className:"boq-input",value:r.label,onChange:e=>updateRegion(i,"label",e.target.value)}),
-            React.createElement("input",{className:"boq-input",value:r.region_type,onChange:e=>updateRegion(i,"region_type",e.target.value)}),
-            React.createElement("input",{className:"boq-input",type:"number",value:r.sheet_page,onChange:e=>updateRegion(i,"sheet_page",e.target.value)}),
-            React.createElement("input",{className:"boq-input",type:"number",placeholder:"sqft",value:r.quantity_sqft||"",onChange:e=>updateRegion(i,"quantity_sqft",e.target.value)}),
-            React.createElement("input",{className:"boq-input",type:"number",placeholder:"L ft",value:r.length_ft||"",onChange:e=>updateRegion(i,"length_ft",e.target.value)}),
-            React.createElement("input",{className:"boq-input",type:"number",placeholder:"W ft",value:r.width_ft||"",onChange:e=>updateRegion(i,"width_ft",e.target.value)}),
-            React.createElement("input",{className:"boq-input",type:"number",placeholder:"H ft",value:r.height_ft||"",onChange:e=>updateRegion(i,"height_ft",e.target.value)}),
-            React.createElement("input",{className:"boq-input",placeholder:"material",value:r.material||"",onChange:e=>updateRegion(i,"material",e.target.value)}),
-            React.createElement("input",{className:"boq-input",value:r.quantity_hint,onChange:e=>updateRegion(i,"quantity_hint",e.target.value)})
-          ))
+        React.createElement("div",{className:"drawing-review-shell"},
+          React.createElement("div",{className:"page-thumb-sidebar"},
+            sheets.map((s,i)=>React.createElement("button",{className:`page-thumb-mini ${i===active?"active":""}`,key:s.id||i,onClick:()=>setActive(i)},
+              React.createElement("strong",null,s.page),
+              React.createElement("span",null,s.thumbnail_label||s.sheet_type),
+              React.createElement("small",null,(pageManifest?.pages||[]).find(p=>Number(p.page)===Number(s.page))?.rendered?"Rendered":"PDF")
+            ))
+          ),
+          React.createElement("div",null,
+            React.createElement("div",{className:"drawing-workspace"},
+              React.createElement("div",null,
+                React.createElement("div",{className:"drawing-canvas",ref:canvasRef,onPointerMove:moveRegionPointer,onPointerUp:endRegionPointer,onPointerLeave:endRegionPointer},
+                  renderedPageUrl&&React.createElement("img",{className:"drawing-preview image rendered-page",src:renderedPageUrl,alt:`Rendered drawing page ${activePage}`,style:{transform:`scale(${zoom/100})`,transformOrigin:"center center"}}),
+                  !renderedPageUrl&&fileUrl&&isImage&&React.createElement("img",{className:"drawing-preview image",src:fileUrl,alt:"Uploaded drawing preview",style:{transform:`scale(${zoom/100})`,transformOrigin:"center center"}}),
+                  !renderedPageUrl&&fileUrl&&isPdf&&React.createElement("iframe",{className:"drawing-preview",src:`${fileUrl}#page=${activePage}&view=Fit`,title:"Uploaded drawing preview",style:{transform:`scale(${zoom/100})`,transformOrigin:"center center"}}),
+                  !fileUrl&&React.createElement("div",{className:"drawing-preview-empty"},"Upload a PDF or drawing image to preview it here."),
+                  React.createElement("div",{className:"drawing-grid-bg"}),
+                  visibleRegions.map(({r,index})=>React.createElement("div",{className:`region-box ${r.region_type}`,key:r.id||index,onClick:e=>{e.stopPropagation();setActiveRegion(index)},onPointerDown:e=>startRegionPointer(e,index,"move"),style:{left:`${r.x}%`,top:`${r.y}%`,width:`${r.w}%`,height:`${r.h}%`,boxShadow:activeRegion===index?"0 0 0 2px var(--white)":"none"}},
+                    r.label,
+                    React.createElement("span",{className:"region-resize",onPointerDown:e=>startRegionPointer(e,index,"resize")})
+                  ))
+                ),
+                React.createElement("div",{className:"workflow-hint",style:{marginTop:10}},"Use zoom, overlay toggles and region cards to inspect what the AI measured. Drag boxes to adjust zones before saving.")
+              ),
+              React.createElement("div",{className:"region-inspector-panel"},
+                React.createElement("div",{className:"info-card-title"},"Region Inspector"),
+                selectedRegion?React.createElement(React.Fragment,null,
+                  [["Label",selectedRegion.label],["Type",selectedRegion.region_type],["Sheet",selectedRegion.sheet_page],["Quantity",fmt.sqft(selectedRegion.quantity_sqft)],["Material",selectedRegion.material||"—"],["Confidence",selectedRegion.confidence||"manual"]].map(([k,v])=>React.createElement("div",{className:"info-row",key:k},React.createElement("span",{className:"info-key"},k),React.createElement("span",{className:"info-val"},v))),
+                  React.createElement("div",{className:"edit-actions"},React.createElement("button",{className:"btn-outline",onClick:()=>setActiveRegion(null)},"Clear"))
+                ):React.createElement("div",{className:"region-inspector-empty"},"Select a region box to inspect its type, quantity, material and confidence.")
+              )
+            ),
+            React.createElement("div",{className:"region-editor"},
+              regions.map((r,i)=>React.createElement(React.Fragment,{key:r.id||i},
+                React.createElement("input",{className:"boq-input",value:r.label,onChange:e=>updateRegion(i,"label",e.target.value)}),
+                React.createElement("input",{className:"boq-input",value:r.region_type,onChange:e=>updateRegion(i,"region_type",e.target.value)}),
+                React.createElement("input",{className:"boq-input",type:"number",value:r.sheet_page,onChange:e=>updateRegion(i,"sheet_page",e.target.value)}),
+                React.createElement("input",{className:"boq-input",type:"number",placeholder:"sqft",value:r.quantity_sqft||"",onChange:e=>updateRegion(i,"quantity_sqft",e.target.value)}),
+                React.createElement("input",{className:"boq-input",type:"number",placeholder:"L ft",value:r.length_ft||"",onChange:e=>updateRegion(i,"length_ft",e.target.value)}),
+                React.createElement("input",{className:"boq-input",type:"number",placeholder:"W ft",value:r.width_ft||"",onChange:e=>updateRegion(i,"width_ft",e.target.value)}),
+                React.createElement("input",{className:"boq-input",type:"number",placeholder:"H ft",value:r.height_ft||"",onChange:e=>updateRegion(i,"height_ft",e.target.value)}),
+                React.createElement("input",{className:"boq-input",placeholder:"material",value:r.material||"",onChange:e=>updateRegion(i,"material",e.target.value)}),
+                React.createElement("input",{className:"boq-input",value:r.quantity_hint,onChange:e=>updateRegion(i,"quantity_hint",e.target.value)})
+              ))
+            )
+          )
         )
       )
     ),
@@ -1997,11 +2067,14 @@ function DrawingIntelligence({projectId,project,onUpdated,notify,onSaved}){
   );
 }
 
-function TakeoffSummary({takeoffs}){
-  const q=takeoffs.quantities||{};
+function TakeoffSummary({projectId,takeoffs,onUpdated,notify,onSaved,editable=false}){
+  const [draft,setDraft]=useState(()=>JSON.parse(JSON.stringify(takeoffs||{})));
+  const [saving,setSaving]=useState(false);
+  useEffect(()=>setDraft(JSON.parse(JSON.stringify(takeoffs||{}))),[takeoffs]);
+  const q=draft.quantities||{};
   const links=takeoffs.boq_links||{};
-  const materials=takeoffs.material_schedule||{};
-  const model=takeoffs.model_reconstruction||{};
+  const materials=draft.material_schedule||{};
+  const model=draft.model_reconstruction||{};
   const items=[
     ["Slab Area","slab_area_sqft",q.slab_area_sqft],
     ["Wall Area","wall_area_sqft",q.wall_area_sqft],
@@ -2013,21 +2086,64 @@ function TakeoffSummary({takeoffs}){
     ["Parking Area","parking_area_sqft",q.parking_area_sqft],
     ["Basement Area","basement_area_sqft",q.basement_area_sqft],
   ];
+  function updateQuantity(key,value){
+    setDraft(cur=>{
+      const next=JSON.parse(JSON.stringify(cur||{}));
+      next.quantities={...(next.quantities||{}),[key]:Number(value)||0};
+      return next;
+    });
+  }
+  async function saveTakeoffs(){
+    if(!projectId)return;
+    setSaving(true);
+    const d=await api.put(`/api/projects/${projectId}/takeoffs`,{takeoffs:draft});
+    setSaving(false);
+    if(d.success){
+      setDraft(d.takeoffs);
+      onUpdated&&onUpdated({takeoffs:d.takeoffs,estimate:d.estimate});
+      notify&&notify("Takeoffs saved and BOQ recalculated.","success");
+      onSaved&&onSaved();
+    }else notify&&notify(d.message||"Could not save takeoffs.","error");
+  }
   return React.createElement("div",{className:"workflow-stack"},
-    React.createElement("div",{className:"projects-title"},"Automated Takeoffs"),
+    React.createElement("div",{className:"projects-header"},
+      React.createElement("div",null,
+        React.createElement("div",{className:"projects-title"},"Takeoff Review"),
+        React.createElement("div",{className:"page-subtitle"},"Review and edit the core quantities before the BOQ/report is finalized.")
+      ),
+      editable&&React.createElement("button",{className:"btn-new",onClick:saveTakeoffs,disabled:saving},saving?"Saving...":"Save Takeoffs")
+    ),
     React.createElement("div",{className:"takeoff-grid"},items.map(([label,key,value])=>React.createElement("div",{className:"takeoff-card",key:label},
       React.createElement("div",{className:"takeoff-val"},fmt.sqft(value)),
       React.createElement("div",{className:"takeoff-label"},label),
       React.createElement("div",{className:"takeoff-link"},"Feeds: ",(links[key]||["BOQ"]).join(", "))
     ))),
-    Object.keys(materials).length>0&&React.createElement("div",{className:"affected-list"},
-      Object.entries(materials).map(([name,item])=>React.createElement("div",{className:"affected-row",key:name},
-        React.createElement("span",null,name),
-        React.createElement("strong",null,fmt.sqft(item.area_sqft))
-      ))
+    React.createElement("div",{className:"takeoff-review"},
+      React.createElement("div",{className:"takeoff-editor"},
+        React.createElement("div",{className:"takeoff-editor-row head"},
+          React.createElement("span",null,"Quantity"),
+          React.createElement("span",null,"Value"),
+          React.createElement("span",null,"Unit"),
+          React.createElement("span",null,"BOQ feeds")
+        ),
+        items.slice(0,7).map(([label,key,value])=>React.createElement("div",{className:"takeoff-editor-row",key:key},
+          React.createElement("strong",null,label),
+          editable?React.createElement("input",{type:"number",value:q[key]||0,onChange:e=>updateQuantity(key,e.target.value)}):React.createElement("span",null,fmt.num(value)),
+          React.createElement("span",null,"sqft"),
+          React.createElement("span",{style:{color:"var(--dim)",fontSize:".78rem"}},(links[key]||["BOQ"]).join(", "))
+        ))
+      ),
+      React.createElement("div",{className:"takeoff-side"},
+        Object.keys(materials).length>0&&React.createElement("div",{className:"affected-list"},
+          Object.entries(materials).map(([name,item])=>React.createElement("div",{className:"affected-row",key:name},
+            React.createElement("span",null,name),
+            React.createElement("strong",null,fmt.sqft(item.area_sqft))
+          ))
+        ),
+        model.status&&React.createElement("div",{className:"disclaimer"},`${model.method} Status: ${model.status}. Facade regions: ${model.facade_regions||0}. Opening regions: ${model.opening_regions||0}.`)
+      )
     ),
-    model.status&&React.createElement("div",{className:"disclaimer"},`${model.method} Status: ${model.status}. Facade regions: ${model.facade_regions||0}. Opening regions: ${model.opening_regions||0}.`),
-    React.createElement("div",{className:"disclaimer"},(takeoffs.assumptions||[]).join(" "))
+    React.createElement("div",{className:"disclaimer"},(draft.assumptions||[]).join(" "))
   );
 }
 
@@ -2054,9 +2170,21 @@ function ReportActions({project,notify}){
     a.click();
     URL.revokeObjectURL(url);
   }
+  async function downloadInvestorCsv(){
+    const r=await fetch(`${API}/api/projects/${project.id}/investor-report.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
+    if(!r.ok){notify("Generate an estimate before exporting investor report.","error");return}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-investor-report.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   return React.createElement("div",{className:"report-actions"},
     React.createElement("button",{className:"btn-new",onClick:()=>window.print()},"Print / Save PDF"),
     React.createElement("button",{className:"btn-outline",onClick:downloadEstimateCsv},"Download Estimate CSV"),
+    React.createElement("button",{className:"btn-outline",onClick:downloadInvestorCsv},"Download Investor CSV"),
     React.createElement("button",{className:"btn-outline",onClick:downloadReportJson},"Download Report JSON")
   );
 }
@@ -2627,6 +2755,65 @@ function ReportPreviewPanel({project,analysis,estimate,takeoffs,notify}){
   );
 }
 
+function ProfessionalReportPanel({project,analysis,estimate,takeoffs,notify}){
+  const [report,setReport]=useState(null);
+  useEffect(()=>{api.get(`/api/projects/${project.id}/report`).then(d=>{if(d.success)setReport(d.report)})},[project.id,project.estimate,project.takeoffs,project.parcel_data]);
+  const parcel=project.parcel_data||{};
+  const q=takeoffs?.quantities||{};
+  const gst=estimate?.gst_breakup||{};
+  const divisions=estimate?.divisions||{};
+  const divisionRows=Object.entries(divisions).slice(0,8);
+  const forecastDelta=estimate?.total_with_gst?Math.round(estimate.total_with_gst*.062):0;
+  const summaryCards=[
+    ["Project",project.name],
+    ["Location",parcel.address||project.address||"Delhi NCR"],
+    ["RERA / Plot",parcel.rera_number||parcel.plot_number||parcel.khasra_number||"Pending"],
+    ["Built-up Area",fmt.sqft(analysis?.total_built_up_area_sqft||estimate?.built_up_area)],
+    ["Total Cost",fmt.inr(estimate?.total_with_gst||0)],
+    ["Cost / sqft",`₹${fmt.num(estimate?.cost_per_sqft||0)}`]
+  ];
+  const section=(title,body)=>React.createElement("div",{className:"report-section-card"},
+    React.createElement("h4",null,title),
+    body
+  );
+  const reportSections=[
+    ["Project Summary",`${project.name} is tracked as ${project.project_type?.replace("_"," ")||"residential project"} with ${fmt.sqft(analysis?.total_built_up_area_sqft||estimate?.built_up_area)} built-up area and ${fmt.num(analysis?.total_units||0)} units.`],
+    ["Land / RERA Details",`Plot: ${parcel.plot_number||"pending"}. Khasra: ${parcel.khasra_number||"pending"}. RERA: ${parcel.rera_number||"pending"}. FAR/FSI: ${parcel.permissible_far||"pending"}.`],
+    ["AI Extraction Summary",`Detected ${analysis?.total_floors||"—"} floors, ${analysis?.basement_levels||0} basement levels, ${analysis?.structure_type||"RCC frame"} structure and ${analysis?.confidence||"medium"} confidence.`],
+    ["Takeoff Quantities",`Wall ${fmt.sqft(q.wall_area_sqft)}, slab ${fmt.sqft(q.slab_area_sqft)}, facade ${fmt.sqft(q.facade_area_sqft)}, glazing ${fmt.sqft(q.window_glazing_area_sqft)}, flooring ${fmt.sqft(q.flooring_area_sqft)}.`],
+    ["GST Summary",`Taxable value ${fmt.inr(estimate?.subtotal||0)}. CGST ${fmt.inr(gst.cgst_6pct||0)}, SGST ${fmt.inr(gst.sgst_6pct||0)}, total GST ${fmt.inr(gst.total_gst||estimate?.gst_12pct||0)}.`],
+    ["Forecast Summary",`MVP 12-month escalation exposure is approximately ${fmt.inr(forecastDelta)} until live supplier/DSR time-series data is connected.`],
+    ["Export Status",report?"Report payload is ready. Use Print / Save PDF, Estimate CSV, Investor CSV or Report JSON for sharing.":"Loading report payload..."]
+  ];
+  return React.createElement("div",{className:"workflow-stack"},
+    React.createElement("div",{className:"report-command"},
+      React.createElement("div",{className:"report-cover"},
+        React.createElement("div",{className:"command-label"},"Bank-ready package"),
+        React.createElement("div",{className:"report-cover-title"},"Professional project report"),
+        React.createElement("div",{className:"report-cover-copy"},"A single output for builders, investors and lenders: project summary, land/RERA details, AI extraction, takeoff quantities, GST-compliant BOQ, forecast and export actions.")
+      ),
+      React.createElement("div",{className:"command-metrics"},
+        summaryCards.map(([label,value])=>React.createElement("div",{className:"command-metric",key:label},
+          React.createElement("div",{className:"command-metric-value"},value||"—"),
+          React.createElement("div",{className:"command-metric-label"},label)
+        ))
+      )
+    ),
+    React.createElement(ReportActions,{project,notify}),
+    React.createElement("div",{className:"report-section-grid"},
+      reportSections.map(([title,body])=>section(title,React.createElement("p",null,body))),
+      section("16-Division BOQ",React.createElement("div",{className:"affected-list"},
+        divisionRows.map(([key,div])=>React.createElement("div",{className:"affected-row",key:key},
+          React.createElement("span",null,div.name),
+          React.createElement("strong",null,fmt.inr(div.amount||0))
+        ))
+      ))
+    ),
+    React.createElement(ProjectIntelligenceDashboard,{project,notify}),
+    React.createElement(ReportPreviewPanel,{project,analysis,estimate,takeoffs,notify})
+  );
+}
+
 function ModelViewerPanel({analysis,takeoffs,estimate}){
   const [options,setOptions]=useState({
     total_floors:analysis?.total_floors||15,
@@ -2696,47 +2883,63 @@ function ModelViewerPanel({analysis,takeoffs,estimate}){
 
 function CostForecastPanel({estimate}){
   const [horizon,setHorizon]=useState(12);
+  const [selected,setSelected]=useState("Cement");
   const total=estimate?.total_with_gst||0;
   const materialProfiles=[
     {name:"Cement",share:.06,rate:3.2,confidence:"Medium",note:"Linked to clinker and freight"},
     {name:"TMT Steel",share:.14,rate:7.8,confidence:"Low",note:"High commodity volatility"},
-    {name:"RMC / RCC",share:.18,rate:5.1,confidence:"Medium",note:"Cement + aggregate exposure"},
+    {name:"RCC",share:.18,rate:5.1,confidence:"Medium",note:"Cement, steel, aggregate and labour"},
     {name:"Glazing",share:.07,rate:8.6,confidence:"Low",note:"Facade import and aluminium risk"},
     {name:"Electrical",share:.09,rate:6.2,confidence:"Medium",note:"Copper and fixture exposure"},
     {name:"Finishes",share:.16,rate:4.4,confidence:"High",note:"Local labour and brand mix"}
   ];
+  const activeProfile=materialProfiles.find(m=>m.name===selected)||materialProfiles[0];
+  const materialBase=Math.round(total*activeProfile.share);
   const months=Array.from({length:horizon}).map((_,i)=>{
     const m=i+1;
-    const escalation=1+(m*.004)+(m>6?.015:0)+(m>12?.026:0);
-    return {month:m,cost:Math.round(total*escalation),pct:((escalation-1)*100).toFixed(1)};
+    const monthlyRate=(activeProfile.rate/100)/12;
+    const volatility=m>6?(activeProfile.rate/100)*.18:0;
+    const longRisk=m>12?(activeProfile.rate/100)*.28:0;
+    const escalation=1+(m*monthlyRate)+volatility+longRisk;
+    return {month:m,cost:Math.round(materialBase*escalation),pct:((escalation-1)*100).toFixed(1)};
   });
   const max=Math.max(...months.map(m=>m.cost),1);
-  const min=Math.min(...months.map(m=>m.cost),total);
+  const min=Math.min(...months.map(m=>m.cost),materialBase);
   const points=months.map((m,i)=>({
     left:horizon===1?0:(i/(horizon-1))*100,
     bottom:((m.cost-min)/(max-min||1))*86+6,
     ...m
   }));
-  const projected=months[months.length-1]?.cost||total;
-  const delta=projected-total;
+  const projected=months[months.length-1]?.cost||materialBase;
+  const delta=projected-materialBase;
   return React.createElement("div",{className:"workflow-stack"},
     React.createElement("div",{className:"forecast-head"},
       React.createElement("div",null,
-        React.createElement("div",{className:"projects-title"},"Professional Cost Forecast"),
-        React.createElement("div",{className:"page-subtitle"},"MVP forecast for Indian construction cost escalation. Replace assumptions with live DSR, supplier and labour data when available.")
+        React.createElement("div",{className:"projects-title"},"Major Material Cost Forecast"),
+        React.createElement("div",{className:"page-subtitle"},"Select a material to see its own line graph, exposure and forecast. Live supplier/DSR time-series can replace these assumptions later.")
       ),
       React.createElement("div",{className:"forecast-tabs"},
         [6,12,24].map(n=>React.createElement("button",{className:`forecast-tab ${horizon===n?"active":""}`,key:n,onClick:()=>setHorizon(n)},`${n} months`))
       )
     ),
+    React.createElement("div",{className:"material-selector"},
+      materialProfiles.map(item=>React.createElement("button",{className:`material-tab ${selected===item.name?"active":""}`,key:item.name,onClick:()=>setSelected(item.name)},
+        React.createElement("strong",null,item.name),
+        React.createElement("span",null,`${Math.round(item.share*100)}% exposure | +${item.rate}%`)
+      ))
+    ),
     React.createElement("div",{className:"forecast-cards"},
-      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},"Current estimate"),React.createElement("div",{className:"forecast-card-value"},fmt.inr(total))),
-      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},`Projected ${horizon}m`),React.createElement("div",{className:"forecast-card-value"},fmt.inr(projected))),
-      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},"Escalation exposure"),React.createElement("div",{className:"forecast-card-value",style:{color:delta>=0?"var(--red)":"var(--green)"}},`${delta>=0?"+":"-"}${fmt.inr(Math.abs(delta))}`))
+      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},`${activeProfile.name} current exposure`),React.createElement("div",{className:"forecast-card-value"},fmt.inr(materialBase))),
+      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},`${activeProfile.name} projected ${horizon}m`),React.createElement("div",{className:"forecast-card-value"},fmt.inr(projected))),
+      React.createElement("div",{className:"forecast-card"},React.createElement("div",{className:"forecast-card-title"},"Material escalation"),React.createElement("div",{className:"forecast-card-value",style:{color:delta>=0?"var(--red)":"var(--green)"}},`${delta>=0?"+":"-"}${fmt.inr(Math.abs(delta))}`))
     ),
     React.createElement("div",{className:"forecast-layout"},
       React.createElement("div",null,
         React.createElement("div",{className:"forecast-chart-pro"},
+          React.createElement("div",{className:"forecast-chart-title"},
+            React.createElement("div",{className:"forecast-chart-name"},`${activeProfile.name} Line Forecast`),
+            React.createElement("div",{className:"forecast-chart-note"},`${activeProfile.note}. Confidence: ${activeProfile.confidence}.`)
+          ),
           [25,50,75].map(y=>React.createElement("span",{className:"forecast-gridline",key:y,style:{bottom:`${y}%`}})),
           React.createElement("div",{className:"forecast-line"},
             points.slice(0,-1).map((p,i)=>{
@@ -2758,7 +2961,7 @@ function CostForecastPanel({estimate}){
       React.createElement("div",{className:"forecast-table"},
         React.createElement("div",{className:"forecast-row"},
           React.createElement("strong",null,"Month"),
-          React.createElement("strong",null,"Projected"),
+          React.createElement("strong",null,activeProfile.name),
           React.createElement("strong",null,"Index")
         ),
         months.map(m=>React.createElement("div",{className:"forecast-row",key:m.month},
@@ -2770,7 +2973,7 @@ function CostForecastPanel({estimate}){
       React.createElement("div",{className:"saved-scenarios"},
         React.createElement("div",{className:"info-card-title"},"Material Exposure"),
         React.createElement("div",{className:"forecast-material-grid"},
-          materialProfiles.map(item=>React.createElement("div",{className:"forecast-material",key:item.name},
+          materialProfiles.map(item=>React.createElement("div",{className:`forecast-material ${selected===item.name?"active":""}`,key:item.name,onClick:()=>setSelected(item.name)},
             React.createElement("div",{className:"forecast-material-top"},
               React.createElement("div",null,
                 React.createElement("div",{className:"material-name"},item.name),
@@ -2806,7 +3009,8 @@ function ProjectDetail({projectId,onBack,notify}){
   useEffect(()=>{load()},[projectId]);
   useEffect(()=>{
     if(project&&!placed){
-      setActiveStep(project.status==="created"?"upload":"home");
+      const firstStep=project.status==="created"?"upload":(!project.parcel_data?"land":(!project.analysis?"review":(!(project.drawing_sheets||[]).length?"sheets":(!project.takeoffs?"takeoffs":(!project.estimate?"estimate":"review")))));
+      setActiveStep(firstStep);
       setPlaced(true);
     }
   },[project,placed]);
@@ -2862,16 +3066,16 @@ function ProjectDetail({projectId,onBack,notify}){
   const takeoffs=project.takeoffs||analysis?.takeoffs;
   const needsApproval=analysis&&((analysis.drawing_review?.missing_information||[]).length>0||analysis.confidence!=="high");
   const workflow=[
-    {id:"home",name:"Home",note:"Command center",label:"Overview",title:"Project command center",copy:"See project status, missing actions, approval state and the recommended next step.",done:project.status==="analyzed",locked:project.status==="created",state:project.status==="analyzed"?"completed":"needs review"},
     {id:"upload",name:"Upload",note:project.file_name||"Add PDF/drawing",label:"Step 01",title:"Upload architectural drawing",copy:"Start with the architectural PDF or drawing image. Once uploaded, the next screen runs AI review and extraction.",done:["uploaded","analyzed"].includes(project.status)},
     {id:"land",name:"Land",note:"Plot, khasra, RERA",label:"Step 02",title:"Parcel and land details",copy:"Capture address, plot or khasra number, RERA reference, FAR/FSI and site boundary information before final reporting.",done:!!project.parcel_data,locked:project.status==="created",state:project.parcel_data?"approved":"needs review"},
-    {id:"review",name:"Review",note:"Check AI results",label:"Step 03",title:"Review AI extraction",copy:"Review extracted project statistics, risks, assumptions and missing information. Save corrections before moving ahead.",done:!!analysis&&!needsApproval,locked:project.status==="created",state:analysis?(needsApproval?"needs review":"approved"):"not started"},
+    {id:"review",name:"AI Approval",note:"Check AI results",label:"Step 03",title:"AI approval and extraction review",copy:"Review extracted project statistics, risks, assumptions and missing information. Save corrections before moving ahead.",done:!!analysis&&!needsApproval,locked:project.status==="created",state:analysis?(needsApproval?"needs review":"approved"):"not started"},
     {id:"sheets",name:"Drawing Pages",note:"Sheets and overlays",label:"Step 04",title:"Page-level drawing intelligence",copy:"Classify sheets, inspect PDF pages, calibrate scale/floor height and adjust visual regions of interest.",done:(project.drawing_sheets||[]).length>0,locked:!analysis,state:(project.drawing_sheets||[]).length?"approved":"needs review"},
     {id:"takeoffs",name:"Takeoffs",note:"Quantities",label:"Step 05",title:"Automated takeoff output",copy:"Review slab, wall, facade, glazing, flooring, plaster/paint and MEP quantity allowances produced from the reviewed drawing data.",done:!!takeoffs,locked:!analysis},
     {id:"model",name:"3D Model",note:"Massing model",label:"Step 06",title:"3D massing and geometry view",copy:"Explore the current model generated from the project metrics. Later this becomes true drawing-to-3D reconstruction.",done:!!analysis,locked:!analysis},
     {id:"estimate",name:"Cost Estimate",note:"BOQ + GST",label:"Step 07",title:"Indian BOQ and cost estimate",copy:"Review the 16-division estimate, edit quantities/rates, check GST and export the cost report.",done:!!hasEstimate,locked:!hasEstimate},
     {id:"scenario",name:"Scenario",note:"Design changes",label:"Step 08",title:"Scenario analysis",copy:"Change RCC grade, cement, steel rate, facade, glazing, floor height and finishes to instantly compare cost impact.",done:false,locked:!hasEstimate},
-    {id:"forecast",name:"Forecast",note:"Investor report",label:"Step 09",title:"Forecast and investor report",copy:"Review the investor dashboard, export reports and see a first MVP cost forecast for future construction timing.",done:false,locked:!hasEstimate}
+    {id:"forecast",name:"Forecast",note:"Major materials",label:"Step 09",title:"Major material cost forecast",copy:"Select cement, RCC, steel, glazing and finishes to see material-specific line forecasts for future construction timing.",done:false,locked:!hasEstimate},
+    {id:"report",name:"Report",note:"Bank ready",label:"Step 10",title:"Professional report",copy:"Assemble project summary, land/RERA, AI extraction, takeoffs, 16-division BOQ, GST, forecast and exports into one report.",done:false,locked:!hasEstimate}
   ];
   const activeIndex=Math.max(0,workflow.findIndex(s=>s.id===activeStep));
   const step=workflow[activeIndex]||workflow[0];
@@ -2891,7 +3095,7 @@ function ProjectDetail({projectId,onBack,notify}){
     if(activeStep==="review"&&!analysis&&canAnalyze){analyze();return;}
     goNext();
   }
-  const primaryLabel=activeStep==="upload"&&project.status==="created"?"Upload Drawing":activeStep==="review"&&!analysis&&canAnalyze?"Run AI Review":activeStep==="forecast"?"Finish":"Continue";
+  const primaryLabel=activeStep==="upload"&&project.status==="created"?"Upload Drawing":activeStep==="review"&&!analysis&&canAnalyze?"Run AI Review":activeStep==="report"?"Finish":"Continue";
   const primaryDisabled=(activeStep==="review"&&!analysis&&!canAnalyze)||activeIndex===workflow.length-1;
 
   const UploadStep=()=>React.createElement(React.Fragment,null,
@@ -2920,7 +3124,7 @@ function ProjectDetail({projectId,onBack,notify}){
     React.createElement(ExtractionEditor,{projectId,analysis,onUpdated:handleAnalysisUpdate,notify,onSaved:goNext,actionLabel:"Save and Continue"})
   );
 
-  const TakeoffStep=()=>takeoffs?React.createElement(TakeoffSummary,{takeoffs}):React.createElement(StepPlaceholder,{title:"Takeoffs are not generated yet",body:"Generate drawing intelligence first. After sheets and regions are available, Nirman.AI creates wall, slab, facade, glazing, flooring, plaster and MEP allowances.",action:()=>setActiveStep("sheets"),label:"Go to Drawing Pages"});
+  const TakeoffStep=()=>takeoffs?React.createElement(TakeoffSummary,{projectId,takeoffs,onUpdated:handleDrawingUpdate,notify,onSaved:goNext,editable:true}):React.createElement(StepPlaceholder,{title:"Takeoffs are not generated yet",body:"Generate drawing intelligence first. After sheets and regions are available, Nirman.AI creates wall, slab, facade, glazing, flooring, plaster and MEP allowances.",action:()=>setActiveStep("sheets"),label:"Go to Drawing Pages"});
 
   const CostEstimateStep=()=>!hasEstimate?React.createElement(StepPlaceholder,{title:"Cost estimate is not ready",body:"Run AI review first. The backend will create the BOQ, GST summary and project estimate from the reviewed data.",action:canAnalyze?analyze:()=>setActiveStep("review"),label:canAnalyze?"Generate Estimate":"Go to Review"}):React.createElement("div",{className:"workflow-stack"},
     React.createElement(ReportActions,{project,notify}),
@@ -2960,7 +3164,6 @@ function ProjectDetail({projectId,onBack,notify}){
   );
 
   function renderStep(){
-    if(activeStep==="home")return React.createElement(ProjectCommandCenter,{project,analysis,estimate,takeoffs,steps:workflow,setActiveStep,analyze,canAnalyze,analyzing,notify});
     if(activeStep==="upload")return React.createElement(UploadStep,null);
     if(activeStep==="land")return React.createElement(ParcelEditor,{project,onUpdated:handleParcelUpdate,notify,onSaved:goNext,actionLabel:"Save and Continue"});
     if(activeStep==="review")return React.createElement(ReviewStep,null);
@@ -2969,7 +3172,8 @@ function ProjectDetail({projectId,onBack,notify}){
     if(activeStep==="model")return analysis?React.createElement(ModelViewerPanel,{analysis,takeoffs,estimate}):React.createElement(StepPlaceholder,{title:"Model is not ready",body:"Run AI review first. The MVP model uses extracted floors, basement and facade assumptions.",action:()=>setActiveStep("review"),label:"Go to Review"});
     if(activeStep==="estimate")return React.createElement(CostEstimateStep,null);
     if(activeStep==="scenario")return hasEstimate?React.createElement(ScenarioSimulator,{projectId,analysis,estimate,notify}):React.createElement(StepPlaceholder,{title:"Scenario needs an estimate",body:"Generate a cost estimate first, then you can compare RCC, cement, facade, floor height and finish options.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
-    if(activeStep==="forecast")return hasEstimate?React.createElement("div",{className:"workflow-stack"},React.createElement(ProjectIntelligenceDashboard,{project,notify}),React.createElement(ReportPreviewPanel,{project,analysis,estimate,takeoffs,notify}),React.createElement(CostForecastPanel,{estimate}),React.createElement(RateLibrary,null)):React.createElement(StepPlaceholder,{title:"Forecast needs an estimate",body:"Forecasting starts after the BOQ and total project cost are available.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
+    if(activeStep==="forecast")return hasEstimate?React.createElement("div",{className:"workflow-stack"},React.createElement(CostForecastPanel,{estimate}),React.createElement(RateLibrary,null)):React.createElement(StepPlaceholder,{title:"Forecast needs an estimate",body:"Forecasting starts after the BOQ and total project cost are available.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
+    if(activeStep==="report")return hasEstimate?React.createElement(ProfessionalReportPanel,{project,analysis,estimate,takeoffs,notify}):React.createElement(StepPlaceholder,{title:"Report needs an estimate",body:"Generate the BOQ and GST estimate first, then Nirman.AI can assemble the bank-ready report.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
     return null;
   }
 

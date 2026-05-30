@@ -11,6 +11,7 @@ import csv
 import io
 import re
 import math
+import mimetypes
 import urllib.error
 import urllib.request
 
@@ -23,9 +24,14 @@ CORS(app)
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PERSISTENT_DATA_DIR = os.environ.get("NIRMAN_DATA_DIR") or ("/var/data" if os.path.isdir("/var/data") else APP_DIR)
 DB_PATH = os.environ.get("NIRMAN_DB_PATH") or os.path.join(PERSISTENT_DATA_DIR, "nirman.db")
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+UPLOAD_DIR = os.environ.get("NIRMAN_UPLOAD_DIR") or os.path.join(PERSISTENT_DATA_DIR, "uploads")
+PAGE_RENDER_DIR = os.environ.get("NIRMAN_PAGE_DIR") or os.path.join(PERSISTENT_DATA_DIR, "pages")
+for directory in [os.path.dirname(DB_PATH), UPLOAD_DIR, PAGE_RENDER_DIR]:
+    os.makedirs(directory, exist_ok=True)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "nirman-admin-2025")
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_UPLOADS = {
     ".pdf": "application/pdf",
@@ -53,6 +59,92 @@ RATE_LIBRARY = {
     ],
     "spec_options": SPEC_FACTORS if "SPEC_FACTORS" in globals() else {},
 }
+
+NIRMAN_EXTRACTION_PROMPT = """
+You are Nirman.AI, an Indian construction quantity-surveying assistant.
+Read the uploaded architectural drawing/PDF and return ONLY valid JSON.
+
+Your job:
+1. Understand the project and extract construction estimate inputs.
+2. Identify drawing sheets and page-level metadata.
+3. Suggest editable visual regions for rooms, cores, facade, openings, walls and slabs.
+4. Estimate takeoff hints conservatively where real dimensions are visible.
+5. Flag missing information clearly.
+
+Return this exact JSON shape:
+{
+  "building_type": "Residential Tower",
+  "total_floors": 15,
+  "total_units": 60,
+  "unit_types": [{"type":"2BHK","count":40,"carpet_area_sqft":850}],
+  "total_built_up_area_sqft": 75000,
+  "total_carpet_area_sqft": 58000,
+  "plot_area_sqft": 12000,
+  "structure_type": "RCC Frame",
+  "basement_levels": 1,
+  "parking_spaces": 65,
+  "lift_count": 3,
+  "confidence": "high|medium|low",
+  "drawing_review": {
+    "summary": "short review",
+    "risks": [],
+    "missing_information": [],
+    "assumptions": []
+  },
+  "drawing_sheets": [
+    {
+      "page": 1,
+      "sheet_type": "site_plan|floor_plan|elevation|section|schedule|detail",
+      "sheet_title": "Typical Floor Plan",
+      "floor_name": "Typical Floor",
+      "scale": "1:100",
+      "scale_pixels": 0,
+      "scale_real_ft": 0,
+      "floor_height_ft": 10,
+      "floor_height_markers": [{"label":"floor to floor","height_ft":10}],
+      "north_direction": "north up / not detected",
+      "detected_labels": ["rooms","lift","staircase"],
+      "missing_fields": ["scale not visible"],
+      "thumbnail_label": "Plan",
+      "annotations": "short notes",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "drawing_regions": [
+    {
+      "sheet_page": 2,
+      "region_type": "room_zone|wall_zone|slab_zone|facade_zone|opening|core|mep_zone",
+      "label": "Apartment zone",
+      "x": 10,
+      "y": 12,
+      "w": 35,
+      "h": 24,
+      "quantity_sqft": 0,
+      "length_ft": 0,
+      "width_ft": 0,
+      "height_ft": 0,
+      "material": "flooring",
+      "quantity_hint": "visible apartment cluster",
+      "confidence": "high|medium|low"
+    }
+  ],
+  "takeoff_hints": {
+    "flooring_area_sqft": 0,
+    "facade_area_sqft": 0,
+    "window_glazing_area_sqft": 0,
+    "wall_area_sqft": 0,
+    "slab_area_sqft": 0,
+    "plaster_paint_area_sqft": 0
+  },
+  "notes": "short notes"
+}
+
+Rules:
+- Use Indian market terminology: RCC, TMT, DSR, CPWD, RERA, khasra/plot, FAR/FSI.
+- Use numbers without commas or units.
+- If a value is not visible, infer conservatively and list it under assumptions.
+- Never include markdown, commentary or code fences.
+"""
 
 ESTIMATE_RATE_ALIASES = {
     "Mobilization, barricading and temporary site office": "Mobilization, barricading and temporary site office",
@@ -115,6 +207,8 @@ def init_db():
                 file_mime TEXT,
                 file_size INTEGER,
                 file_data BLOB,
+                file_path TEXT,
+                page_manifest TEXT,
                 parcel_data TEXT,
                 drawing_sheets TEXT,
                 drawing_regions TEXT,
@@ -158,6 +252,8 @@ def init_db():
             "file_mime": "ALTER TABLE projects ADD COLUMN file_mime TEXT",
             "file_size": "ALTER TABLE projects ADD COLUMN file_size INTEGER",
             "file_data": "ALTER TABLE projects ADD COLUMN file_data BLOB",
+            "file_path": "ALTER TABLE projects ADD COLUMN file_path TEXT",
+            "page_manifest": "ALTER TABLE projects ADD COLUMN page_manifest TEXT",
             "parcel_data": "ALTER TABLE projects ADD COLUMN parcel_data TEXT",
             "drawing_sheets": "ALTER TABLE projects ADD COLUMN drawing_sheets TEXT",
             "drawing_regions": "ALTER TABLE projects ADD COLUMN drawing_regions TEXT",
@@ -234,12 +330,15 @@ def uid():
 def public_project(row):
     project = dict(row)
     project.pop("file_data", None)
+    project.pop("file_path", None)
     project["analysis"] = json.loads(row["analysis"]) if row["analysis"] else None
     project["estimate"] = json.loads(row["estimate"]) if row["estimate"] else None
     project["parcel_data"] = json.loads(row["parcel_data"]) if row["parcel_data"] else None
     project["drawing_sheets"] = json.loads(row["drawing_sheets"]) if row["drawing_sheets"] else None
     project["drawing_regions"] = json.loads(row["drawing_regions"]) if row["drawing_regions"] else None
     project["takeoffs"] = json.loads(row["takeoffs"]) if row["takeoffs"] else None
+    manifest = json.loads(row["page_manifest"]) if "page_manifest" in row.keys() and row["page_manifest"] else None
+    project["page_manifest"] = public_page_manifest(manifest, row["id"]) if manifest else None
     return project
 
 def require_admin_key():
@@ -256,6 +355,138 @@ def validate_upload(file):
     if len(data) > MAX_UPLOAD_BYTES:
         return None, None, "Upload must be 20MB or smaller."
     return data, ALLOWED_UPLOADS[ext], None
+
+def safe_filename(filename):
+    base = os.path.basename(filename or "drawing")
+    base = re.sub(r"[^A-Za-z0-9._-]+", "-", base).strip(".-")
+    return base or "drawing"
+
+def project_upload_path(project_id, filename):
+    project_dir = os.path.join(UPLOAD_DIR, project_id)
+    os.makedirs(project_dir, exist_ok=True)
+    ext = os.path.splitext(filename.lower())[1] or ".bin"
+    return os.path.join(project_dir, f"source{ext}")
+
+def cleanup_project_artifacts(project_id):
+    for root in [os.path.join(UPLOAD_DIR, project_id), os.path.join(PAGE_RENDER_DIR, project_id)]:
+        if not os.path.isdir(root):
+            continue
+        for dirpath, _, filenames in os.walk(root, topdown=False):
+            for filename in filenames:
+                try:
+                    os.remove(os.path.join(dirpath, filename))
+                except OSError:
+                    pass
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                pass
+
+def write_project_file(project_id, filename, data):
+    path = project_upload_path(project_id, filename)
+    with open(path, "wb") as f:
+        f.write(data)
+    return path
+
+def project_file_bytes(row):
+    path = row["file_path"] if "file_path" in row.keys() else None
+    if path and os.path.exists(path):
+        with open(path, "rb") as f:
+            return f.read()
+    return row["file_data"]
+
+def project_page_dir(project_id):
+    path = os.path.join(PAGE_RENDER_DIR, project_id)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def make_page_manifest(project_id, file_name, file_mime, file_size=0, page_count=1, rendered=False, error=None):
+    pages = []
+    for page in range(1, max(int(page_count or 1), 1) + 1):
+        pages.append({
+            "page": page,
+            "label": f"Page {page}",
+            "image_path": os.path.join(project_page_dir(project_id), f"page-{page}.png"),
+            "image_url": f"/api/projects/{project_id}/pages/{page}.png",
+            "rendered": bool(rendered),
+        })
+    return {
+        "file_name": file_name,
+        "file_mime": file_mime,
+        "file_size": file_size,
+        "page_count": len(pages),
+        "rendered": bool(rendered),
+        "render_error": error,
+        "pages": pages,
+        "updated_at": now(),
+    }
+
+def render_project_pages(project_id, file_path, file_mime, file_name, file_size=0):
+    if not file_path or not os.path.exists(file_path):
+        return make_page_manifest(project_id, file_name, file_mime, file_size, 1, False, "Source file is not on disk yet.")
+    if (file_mime or "").startswith("image/"):
+        ext = os.path.splitext(file_path)[1] or ".png"
+        target = os.path.join(project_page_dir(project_id), f"page-1{ext}")
+        with open(file_path, "rb") as src, open(target, "wb") as dst:
+            dst.write(src.read())
+        manifest = make_page_manifest(project_id, file_name, file_mime, file_size, 1, True)
+        manifest["pages"][0]["image_path"] = target
+        return manifest
+    if file_mime != "application/pdf":
+        return make_page_manifest(project_id, file_name, file_mime, file_size, 1, False, "Unsupported drawing preview type.")
+    try:
+        import fitz
+    except Exception:
+        return make_page_manifest(project_id, file_name, file_mime, file_size, 1, False, "PDF page rendering needs PyMuPDF installed on the backend.")
+    try:
+        doc = fitz.open(file_path)
+        page_count = min(len(doc), 30)
+        pages = []
+        for index in range(page_count):
+            page = doc.load_page(index)
+            pix = page.get_pixmap(matrix=fitz.Matrix(1.35, 1.35), alpha=False)
+            target = os.path.join(project_page_dir(project_id), f"page-{index + 1}.png")
+            pix.save(target)
+            pages.append({
+                "page": index + 1,
+                "label": f"Page {index + 1}",
+                "width": pix.width,
+                "height": pix.height,
+                "image_path": target,
+                "image_url": f"/api/projects/{project_id}/pages/{index + 1}.png",
+                "rendered": True,
+            })
+        doc.close()
+        return {
+            "file_name": file_name,
+            "file_mime": file_mime,
+            "file_size": file_size,
+            "page_count": page_count,
+            "rendered": True,
+            "render_error": None,
+            "pages": pages,
+            "updated_at": now(),
+        }
+    except Exception as exc:
+        return make_page_manifest(project_id, file_name, file_mime, file_size, 1, False, f"Could not render PDF pages: {exc}")
+
+def get_project_for_file(project_id, user_id):
+    return get_db().execute(
+        "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+        (project_id, user_id)
+    ).fetchone()
+
+def api_page_url(project_id, page_number):
+    return f"/api/projects/{project_id}/pages/{safe_int(page_number, 1, 1)}.png"
+
+def public_page_manifest(manifest, project_id):
+    if not manifest:
+        return None
+    public = copy.deepcopy(manifest)
+    for page in public.get("pages", []):
+        page.pop("image_path", None)
+        page["image_url"] = api_page_url(project_id, page.get("page"))
+    return public
 
 def get_owned_project(project_id):
     return get_db().execute(
@@ -557,6 +788,7 @@ def delete_project(project_id):
     db.execute("DELETE FROM scenarios WHERE project_id = ?", (project_id,))
     db.execute("DELETE FROM projects WHERE id = ?", (project_id,))
     db.commit()
+    cleanup_project_artifacts(project_id)
     return jsonify({"success": True, "message": "Project deleted."})
 
 @app.route("/api/projects/<project_id>/upload", methods=["POST"])
@@ -578,22 +810,25 @@ def upload_project_drawing(project_id):
     if error:
         return jsonify({"success": False, "message": error}), 400
 
+    file_path = write_project_file(project_id, file.filename, data)
+    manifest = render_project_pages(project_id, file_path, mime, file.filename, len(data))
+
     db.execute(
         """
         UPDATE projects
-        SET file_name = ?, file_mime = ?, file_size = ?, file_data = ?,
+        SET file_name = ?, file_mime = ?, file_size = ?, file_data = ?, file_path = ?, page_manifest = ?,
             drawing_sheets = NULL, drawing_regions = NULL, takeoffs = NULL,
             analysis = NULL, estimate = NULL, status = 'uploaded', updated_at = ?
         WHERE id = ?
         """,
-        (file.filename, mime, len(data), sqlite3.Binary(data), now(), project_id)
+        (file.filename, mime, len(data), sqlite3.Binary(data), file_path, json.dumps(manifest), now(), project_id)
     )
     db.commit()
 
     return jsonify({
         "success": True,
         "message": "Drawing uploaded.",
-        "file": {"name": file.filename, "mime": mime, "size": len(data)}
+        "file": {"name": file.filename, "mime": mime, "size": len(data), "page_manifest": public_page_manifest(manifest, project_id)}
     })
 
 @app.route("/api/projects/<project_id>/file", methods=["GET"])
@@ -607,21 +842,66 @@ def project_drawing_file(project_id):
         return jsonify({"success": False, "message": "Login required."}), 401
 
     row = get_db().execute(
-        "SELECT file_name, file_mime, file_data FROM projects WHERE id = ? AND user_id = ?",
+        "SELECT file_name, file_mime, file_data, file_path FROM projects WHERE id = ? AND user_id = ?",
         (project_id, user_id)
     ).fetchone()
-    if not row or not row["file_data"]:
+    if not row:
+        return jsonify({"success": False, "message": "Drawing file not found."}), 404
+    data = project_file_bytes(row)
+    if not data:
         return jsonify({"success": False, "message": "Drawing file not found."}), 404
 
     filename = (row["file_name"] or "drawing").replace('"', "")
     return Response(
-        row["file_data"],
+        data,
         mimetype=row["file_mime"] or "application/octet-stream",
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
             "Cache-Control": "private, no-store",
         }
     )
+
+@app.route("/api/projects/<project_id>/pages", methods=["GET"])
+@require_auth
+def project_pages(project_id):
+    row = get_project_for_file(project_id, g.current_user["id"])
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    manifest = parse_json_field(row, "page_manifest", None)
+    if not manifest:
+        file_path = row["file_path"] if "file_path" in row.keys() else None
+        manifest = render_project_pages(project_id, file_path, row["file_mime"], row["file_name"], row["file_size"] or 0)
+        get_db().execute("UPDATE projects SET page_manifest = ?, updated_at = ? WHERE id = ?", (json.dumps(manifest), now(), project_id))
+        get_db().commit()
+    return jsonify({"success": True, "page_manifest": public_page_manifest(manifest, project_id)})
+
+@app.route("/api/projects/<project_id>/pages/<int:page_number>.png", methods=["GET"])
+def project_page_image(project_id, page_number):
+    token = request.args.get("token", "")
+    user_id = verify_token(token) if token else None
+    if not user_id:
+        user = get_current_user()
+        user_id = user["id"] if user else None
+    if not user_id:
+        return jsonify({"success": False, "message": "Login required."}), 401
+
+    row = get_project_for_file(project_id, user_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    manifest = parse_json_field(row, "page_manifest", {}) or {}
+    page = next((p for p in manifest.get("pages", []) if safe_int(p.get("page"), 0, 0) == page_number), None)
+    if not page or not page.get("image_path") or not os.path.exists(page["image_path"]):
+        file_path = row["file_path"] if "file_path" in row.keys() else None
+        manifest = render_project_pages(project_id, file_path, row["file_mime"], row["file_name"], row["file_size"] or 0)
+        get_db().execute("UPDATE projects SET page_manifest = ?, updated_at = ? WHERE id = ?", (json.dumps(manifest), now(), project_id))
+        get_db().commit()
+        page = next((p for p in manifest.get("pages", []) if safe_int(p.get("page"), 0, 0) == page_number), None)
+    if not page or not os.path.exists(page.get("image_path", "")):
+        return jsonify({"success": False, "message": "Page preview not available."}), 404
+    with open(page["image_path"], "rb") as f:
+        data = f.read()
+    mime = mimetypes.guess_type(page["image_path"])[0] or "image/png"
+    return Response(data, mimetype=mime, headers={"Cache-Control": "private, no-store"})
 
 @app.route("/api/projects/<project_id>/parcel", methods=["PUT"])
 @require_auth
@@ -1109,53 +1389,74 @@ def normalize_analysis(data, project_name):
     return result
 
 def analyze_drawing_with_ai(project):
+    file_data = project_file_bytes(project)
+    if not file_data:
+        return fallback_analysis(project["name"], "Drawing file was not available to the AI analyzer.")
+
+    mime = project["file_mime"] or "application/pdf"
+    b64 = base64.b64encode(file_data).decode("utf-8")
+    provider = AI_PROVIDER or ("gemini" if os.environ.get("GEMINI_API_KEY") else "anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "")
+    if provider == "gemini":
+        return analyze_with_gemini(project, mime, b64)
+    if provider == "anthropic":
+        return analyze_with_anthropic(project, mime, b64)
+    return fallback_analysis(project["name"], "No AI API key is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY in Render.")
+
+def analyze_with_gemini(project, mime, b64):
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        return fallback_analysis(project["name"], "GEMINI_API_KEY is not configured, so the app used a demo fallback.")
+
+    payload = {
+        "contents": [{
+            "role": "user",
+            "parts": [
+                {"inline_data": {"mime_type": mime, "data": b64}},
+                {"text": NIRMAN_EXTRACTION_PROMPT},
+            ],
+        }],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+        },
+    }
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"content-type": "application/json", "x-goog-api-key": api_key},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            raw = json.loads(resp.read().decode("utf-8"))
+        parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts)
+        data = parse_ai_json(text)
+        data["ai_source"] = "gemini"
+        return normalize_analysis(data, project["name"])
+    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError, IndexError) as exc:
+        return fallback_analysis(project["name"], f"Gemini analysis failed: {exc}")
+
+def analyze_with_anthropic(project, mime, b64):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
         return fallback_analysis(project["name"], "ANTHROPIC_API_KEY is not configured, so the app used a demo fallback.")
 
-    file_data = project["file_data"]
-    mime = project["file_mime"] or "application/pdf"
-    b64 = base64.b64encode(file_data).decode("utf-8")
     if mime == "application/pdf":
         drawing_block = {"type": "document", "source": {"type": "base64", "media_type": mime, "data": b64}}
     else:
         drawing_block = {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}}
 
-    prompt = """
-You are an Indian construction quantity-surveying assistant for Nirman.AI.
-Read the uploaded architectural drawing and return ONLY valid JSON with these keys:
-building_type, total_floors, total_units, unit_types, total_built_up_area_sqft,
-total_carpet_area_sqft, plot_area_sqft, structure_type, basement_levels,
-parking_spaces, lift_count, confidence, drawing_review, drawing_sheets,
-drawing_regions, takeoff_hints, notes.
-
-Rules:
-- unit_types must be an array of objects with type, count, carpet_area_sqft.
-- drawing_review must be an object with summary, risks, missing_information, assumptions.
-- drawing_sheets must be an array. For each sheet include page, sheet_type
-  (site_plan, floor_plan, elevation, section, schedule, detail), sheet_title,
-  floor_name, scale, scale_pixels, scale_real_ft, floor_height_ft,
-  floor_height_markers, north_direction, detected_labels, missing_fields,
-  thumbnail_label, annotations, confidence.
-- drawing_regions must be an array of editable overlay suggestions. For each region include
-  sheet_page, region_type (room_zone, wall_zone, slab_zone, facade_zone, opening, core, mep_zone),
-  label, x, y, w, h, quantity_sqft, length_ft, width_ft, height_ft, material,
-  quantity_hint, confidence. Coordinates are percentages 0-100.
-- takeoff_hints may include flooring_area_sqft, facade_area_sqft, window_glazing_area_sqft,
-  wall_area_sqft, slab_area_sqft, plaster_paint_area_sqft if visible or inferable.
-- Use numeric values without commas or units.
-- If a value is not visible, infer conservatively from the drawing context and explain it in notes.
-- confidence must be high, medium, or low.
-"""
     payload = {
         "model": ANTHROPIC_MODEL,
-        "max_tokens": 1600,
+        "max_tokens": 2200,
         "temperature": 0,
         "messages": [{
             "role": "user",
             "content": [
                 drawing_block,
-                {"type": "text", "text": prompt},
+                {"type": "text", "text": NIRMAN_EXTRACTION_PROMPT},
             ],
         }],
     }
