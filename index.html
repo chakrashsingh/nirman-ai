@@ -631,9 +631,15 @@ a{text-decoration:none;color:inherit}
 .edit-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
 .edit-grid .form-field{margin-bottom:0}
 .edit-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
-.amenity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+.amenity-grid,.feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 .check-row{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:.8rem;color:var(--dim)}
 .check-row input{width:auto;accent-color:var(--accent)}
+.feature-card{border:1px solid var(--border);background:var(--bg);padding:12px;border-radius:var(--radius)}
+.feature-card-head{display:flex;gap:10px;align-items:flex-start}
+.feature-card-title{font-family:var(--syne);font-size:.9rem;font-weight:700;color:var(--white)}
+.feature-card-meta{font-family:var(--mono);font-size:.55rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);margin-top:4px}
+.feature-card-source{font-size:.72rem;color:var(--dim);line-height:1.45;margin-top:8px}
+.feature-card input[type="checkbox"]{width:auto;accent-color:var(--accent)}
 .scenario-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
 .scenario-controls{background:var(--surface);border:1px solid var(--border);padding:20px;border-radius:var(--radius);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 16px}
 .scenario-controls .form-field{margin-bottom:0}
@@ -776,7 +782,7 @@ a{text-decoration:none;color:inherit}
   .workflow-panel-meta{text-align:left}
   .model-layout,.forecast-layout,.approval-hero,.material-swap-layout,.editable-model{grid-template-columns:1fr}
   .editable-model{grid-template-areas:"controls" "model" "stats"}
-  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.drawing-review-shell,.change-grid,.takeoff-review,.report-command,.report-section-grid,.property-type-grid,.amenity-grid{grid-template-columns:1fr}
+  .approval-grid,.approval-status-row,.forecast-cards,.forecast-material-grid,.command-grid,.command-metrics,.report-checklist,.ai-progress,.drawing-workspace,.drawing-review-shell,.change-grid,.takeoff-review,.report-command,.report-section-grid,.property-type-grid,.amenity-grid,.feature-grid{grid-template-columns:1fr}
   .material-selector{grid-template-columns:1fr 1fr}
   .stats-row{grid-template-columns:1fr 1fr}
   .analysis-grid{grid-template-columns:1fr}
@@ -1080,7 +1086,7 @@ a{text-decoration:none;color:inherit}
     </div>
     <div class="wl-right">
       <div class="wl-count">
-        <div class="wl-count-num" id="wlNum">247</div>
+        <div class="wl-count-num" id="wlNum">40</div>
         <div class="wl-count-label">Professionals already registered</div>
       </div>
       <div id="wlForm">
@@ -1740,6 +1746,7 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     bar:!!analysis.luxury_amenities?.bar,
     gym:!!analysis.luxury_amenities?.gym,
     home_theater:!!analysis.luxury_amenities?.home_theater,
+    detected_features:(analysis.detected_features||[]).map(f=>({...f,included:f.included!==false})),
     notes:analysis.notes||""
   }));
   const [saving,setSaving]=useState(false);
@@ -1769,6 +1776,7 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     bar:!!analysis.luxury_amenities?.bar,
     gym:!!analysis.luxury_amenities?.gym,
     home_theater:!!analysis.luxury_amenities?.home_theater,
+    detected_features:(analysis.detected_features||[]).map(f=>({...f,included:f.included!==false})),
     notes:analysis.notes||""
   }),[analysis]);
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
@@ -1776,6 +1784,11 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     React.createElement("label",null,label),
     React.createElement("input",{type,value:form[k],onChange:e=>set(k,e.target.value)})
   );
+  const setFeature=(index,key,value)=>setForm(f=>{
+    const next=[...(f.detected_features||[])];
+    next[index]={...next[index],[key]:value};
+    return {...f,detected_features:next};
+  });
   async function save(){
     setSaving(true);
     const upper=Number(form.upper_floor_area_sqft)||0;
@@ -1799,7 +1812,17 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
         bar:!!form.bar,
         gym:!!form.gym,
         home_theater:!!form.home_theater
-      }
+      },
+      detected_features:(form.detected_features||[]).map(f=>({
+        name:f.name,
+        category:f.category,
+        area_sqft:Number(f.area_sqft)||0,
+        quantity:Number(f.quantity)||1,
+        unit:f.unit||"space",
+        confidence:f.confidence||"medium",
+        source:f.source||"",
+        included:f.included!==false
+      }))
     };
     const d=await api.put(`/api/projects/${projectId}/analysis`,payload);
     setSaving(false);
@@ -1898,6 +1921,26 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
           React.createElement("strong",null,label),
           React.createElement("span",null,note)
         )
+      )
+    ),
+    (form.detected_features||[]).length>0&&React.createElement(React.Fragment,null,
+      React.createElement("div",{className:"info-card-title",style:{marginTop:18}},"AI Detected Spaces and Amenities"),
+      React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6,fontSize:".86rem",marginTop:6}},"Only features with drawing evidence are listed here. Deselect any item you do not want included in the estimate."),
+      React.createElement("div",{className:"feature-grid"},
+        (form.detected_features||[]).map((feature,index)=>React.createElement("div",{className:"feature-card",key:`feature-${index}`},
+          React.createElement("div",{className:"feature-card-head"},
+            React.createElement("input",{type:"checkbox",checked:feature.included!==false,onChange:e=>setFeature(index,"included",e.target.checked)}),
+            React.createElement("div",null,
+              React.createElement("div",{className:"feature-card-title"},feature.name||"Detected feature"),
+              React.createElement("div",{className:"feature-card-meta"},`${feature.category||"space"} / ${feature.confidence||"medium"}`)
+            )
+          ),
+          React.createElement("div",{className:"edit-grid",style:{gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10}},
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Area sqft"),React.createElement("input",{type:"number",value:feature.area_sqft||0,onChange:e=>setFeature(index,"area_sqft",e.target.value)})),
+            React.createElement("div",{className:"form-field"},React.createElement("label",null,"Qty"),React.createElement("input",{type:"number",value:feature.quantity||1,onChange:e=>setFeature(index,"quantity",e.target.value)}))
+          ),
+          React.createElement("div",{className:"feature-card-source"},feature.source||"AI detected from drawing context")
+        ))
       )
     ),
     isVilla&&React.createElement(React.Fragment,null,

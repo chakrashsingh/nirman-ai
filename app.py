@@ -18,15 +18,24 @@ import urllib.request
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
 
+try:
+    import psycopg2
+    import psycopg2.extras
+except Exception:
+    psycopg2 = None
+
 app = Flask(__name__)
 CORS(app)
 
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 PERSISTENT_DATA_DIR = os.environ.get("NIRMAN_DATA_DIR") or ("/var/data" if os.path.isdir("/var/data") else APP_DIR)
 DB_PATH = os.environ.get("NIRMAN_DB_PATH") or os.path.join(PERSISTENT_DATA_DIR, "nirman.db")
+DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("SUPABASE_DATABASE_URL") or ""
+USE_POSTGRES = bool(DATABASE_URL)
 UPLOAD_DIR = os.environ.get("NIRMAN_UPLOAD_DIR") or os.path.join(PERSISTENT_DATA_DIR, "uploads")
 PAGE_RENDER_DIR = os.environ.get("NIRMAN_PAGE_DIR") or os.path.join(PERSISTENT_DATA_DIR, "pages")
-for directory in [os.path.dirname(DB_PATH), UPLOAD_DIR, PAGE_RENDER_DIR]:
+WAITLIST_PUBLIC_BASE = int(os.environ.get("WAITLIST_PUBLIC_BASE", "40"))
+for directory in ([UPLOAD_DIR, PAGE_RENDER_DIR] if USE_POSTGRES else [os.path.dirname(DB_PATH), UPLOAD_DIR, PAGE_RENDER_DIR]):
     os.makedirs(directory, exist_ok=True)
 ADMIN_KEY = os.environ.get("ADMIN_KEY", "nirman-admin-2025")
 
@@ -280,7 +289,7 @@ PROPERTY_COST_PROFILES = {
         "finish_multiplier": 1.38,
     },
 }
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-20250514")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "auto").strip()
 GEMINI_MODEL_PREFERENCE = os.environ.get(
     "GEMINI_MODEL_PREFERENCE",
@@ -363,6 +372,9 @@ Return this exact JSON shape:
   "hvac_units": [{"type":"cassette ac","qty":2,"hp_rating":2.0,"tr":1.65,"cfm":466,"room":"lounge"}],
   "floor_wise_areas": {"basement":0,"ground":0,"first":0,"second":0,"terrace":0,"pool_landscape":0},
   "luxury_amenities": {"swimming_pool":false,"sauna":false,"modular_kitchen":false,"home_automation":false,"pergola":false,"fire_pit":false,"bar":false,"gym":false,"home_theater":false},
+  "detected_features": [
+    {"name":"Indoor gym","category":"amenity","area_sqft":1200,"quantity":1,"unit":"space","confidence":"high","source":"Page 4 label: Indoor Gym","included":true}
+  ],
   "confidence": "high|medium|low",
   "drawing_review": {
     "summary": "short review",
@@ -421,10 +433,20 @@ Return this exact JSON shape:
 Rules:
 - Use Indian market terminology: RCC, TMT, DSR, CPWD, RERA, khasra/plot, FAR/FSI.
 - Use numbers without commas or units.
-- If a value is not visible, infer conservatively and list it under assumptions.
+- Prefer visible drawing text, title blocks, schedules, room labels and dimension notes over generic assumptions.
+- If a value is visible, prefill it directly. If a value is not visible, infer conservatively and list it under assumptions.
+- Read every page, including site plan, floor plans, roof/terrace plans, sections, elevations, schedules and MEP sheets.
+- Detect plot/site area from labels such as plot area, site area, land area, khasra area, property area, sq m, sqm, sq.ft, acres or hectares.
+- Detect floor count from labels such as basement, lower ground, ground floor, first floor, second floor, terrace, roof, section markers and elevation floor-height markers.
+- Detect floor-wise areas from area schedules, title blocks, room schedules and plan labels. For villas, fill basement, ground, first, second, terrace and pool_landscape where visible.
+- Detect ALL labelled project spaces, amenities and functional rooms from explicit drawing labels. Do not limit detection to villas.
+- Examples: clubhouse, indoor gym, outdoor gym, indoor games, kids play area, creche, party hall, banquet hall, multipurpose hall, society office, guard room, STP, pump room, classrooms, labs, library, auditorium, cafeteria, infirmary, pantry, restaurant, commercial kitchen, laundry, spa, lobby, BOH, anchor store, food court, escalator, atrium, ICU, OT, wards, pharmacy, diagnostic lab, medical gas room, dock bays, PEB shed, VDF flooring and loading area.
+- For every detected feature, add an object to detected_features with a concrete source/evidence string such as page number, visible label, schedule row or title-block note.
+- Set luxury_amenities booleans for backward compatibility only when those exact amenities are visible. The broader detected_features array is the primary source for project-specific estimate additions.
 - If the sheet is HVAC, electrical, plumbing, fire, structural, or interior-only, set estimate_scope to "discipline_only" and do not generate full-project assumptions.
 - If the selected/building type is villa or independent house, do not assume tower-style lifts, basements or apartment unit mixes.
-- If the project is a standalone villa/bungalow, set total_units = 1, building_type = "Villa", estimate floor_wise_areas, detect amenities such as pool/sauna/bar/gym/home theater/pergola/fire pit, and list HVAC units with hp_rating when visible.
+- If the project is a standalone villa/bungalow, set total_units = 1, building_type = "Villa", estimate floor_wise_areas, auto-select visible amenities such as pool/sauna/bar/gym/home theater/pergola/fire pit, and list HVAC units with hp_rating when visible.
+- In drawing_review.assumptions, include short evidence notes for each auto-selected amenity and each inferred area/floor value.
 - Use school_institution for schools, colleges and educational campuses. Use hospital_healthcare for hospitals, clinics and healthcare buildings.
 - Never include markdown, commentary or code fences.
 """
@@ -453,10 +475,42 @@ ESTIMATE_RATE_ALIASES = {
     "Weatherproof exterior paint": "Weatherproof exterior paint",
 }
 
+class PostgresDB:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, sql, params=()):
+        cur = self.conn.cursor()
+        cur.execute(self.convert_sql(sql), params or ())
+        return cur
+
+    def executescript(self, script):
+        cur = self.conn.cursor()
+        cur.execute(script)
+        return cur
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
+    @staticmethod
+    def convert_sql(sql):
+        sql = sql.replace("?", "%s")
+        sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+        return sql
+
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
+        if USE_POSTGRES:
+            if psycopg2 is None:
+                raise RuntimeError("psycopg2-binary is required when DATABASE_URL/SUPABASE_DATABASE_URL is configured.")
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.DictCursor)
+            g.db = PostgresDB(conn)
+        else:
+            g.db = sqlite3.connect(DB_PATH)
+            g.db.row_factory = sqlite3.Row
     return g.db
 
 @app.teardown_appcontext
@@ -468,6 +522,131 @@ def close_db(e=None):
 def init_db():
     with app.app_context():
         db = get_db()
+        if USE_POSTGRES:
+            db.executescript("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT NOT NULL UNIQUE,
+                    password TEXT NOT NULL,
+                    company TEXT,
+                    role TEXT,
+                    city TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS projects (
+                    id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    address TEXT,
+                    project_type TEXT DEFAULT 'residential_tower',
+                    status TEXT DEFAULT 'created',
+                    file_name TEXT,
+                    file_mime TEXT,
+                    file_size INTEGER,
+                    file_data BYTEA,
+                    file_path TEXT,
+                    page_manifest TEXT,
+                    parcel_data TEXT,
+                    drawing_sheets TEXT,
+                    drawing_regions TEXT,
+                    takeoffs TEXT,
+                    analysis TEXT,
+                    estimate TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS waitlist (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT NOT NULL UNIQUE,
+                    phone TEXT,
+                    role TEXT,
+                    city TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS scenarios (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    options TEXT NOT NULL,
+                    result TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS rate_items (
+                    id TEXT PRIMARY KEY,
+                    category TEXT NOT NULL,
+                    item TEXT NOT NULL UNIQUE,
+                    unit TEXT NOT NULL,
+                    rate REAL NOT NULL,
+                    source TEXT,
+                    city TEXT DEFAULT 'Delhi NCR',
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS detected_features (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT NOT NULL,
+                    user_id TEXT,
+                    name TEXT NOT NULL,
+                    category TEXT,
+                    area_sqft REAL DEFAULT 0,
+                    quantity REAL DEFAULT 1,
+                    unit TEXT DEFAULT 'item',
+                    confidence TEXT DEFAULT 'medium',
+                    source TEXT,
+                    included BOOLEAN DEFAULT TRUE,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS historical_boqs (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    user_id TEXT,
+                    file_name TEXT,
+                    file_mime TEXT,
+                    file_size INTEGER,
+                    file_data BYTEA,
+                    parsed_data TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS cpwd_items (
+                    id TEXT PRIMARY KEY,
+                    code TEXT UNIQUE,
+                    description TEXT NOT NULL,
+                    unit TEXT,
+                    rate REAL,
+                    source TEXT,
+                    city TEXT DEFAULT 'Delhi NCR',
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS material_rates (
+                    id TEXT PRIMARY KEY,
+                    material TEXT NOT NULL,
+                    unit TEXT NOT NULL,
+                    rate REAL NOT NULL,
+                    city TEXT DEFAULT 'Delhi NCR',
+                    supplier TEXT,
+                    source TEXT,
+                    effective_date TEXT,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS drawing_files (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    user_id TEXT,
+                    file_name TEXT NOT NULL,
+                    file_mime TEXT,
+                    file_size INTEGER,
+                    file_data BYTEA,
+                    file_path TEXT,
+                    file_kind TEXT DEFAULT 'drawing',
+                    parsed_text TEXT,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            seed_rate_items(db)
+            db.commit()
+            return
         db.executescript("""
             CREATE TABLE IF NOT EXISTS users (
                 id TEXT PRIMARY KEY,
@@ -528,6 +707,65 @@ def init_db():
                 source TEXT,
                 city TEXT DEFAULT 'Delhi NCR',
                 updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS detected_features (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                user_id TEXT,
+                name TEXT NOT NULL,
+                category TEXT,
+                area_sqft REAL DEFAULT 0,
+                quantity REAL DEFAULT 1,
+                unit TEXT DEFAULT 'item',
+                confidence TEXT DEFAULT 'medium',
+                source TEXT,
+                included INTEGER DEFAULT 1,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS historical_boqs (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                user_id TEXT,
+                file_name TEXT,
+                file_mime TEXT,
+                file_size INTEGER,
+                file_data BLOB,
+                parsed_data TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS cpwd_items (
+                id TEXT PRIMARY KEY,
+                code TEXT UNIQUE,
+                description TEXT NOT NULL,
+                unit TEXT,
+                rate REAL,
+                source TEXT,
+                city TEXT DEFAULT 'Delhi NCR',
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS material_rates (
+                id TEXT PRIMARY KEY,
+                material TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                rate REAL NOT NULL,
+                city TEXT DEFAULT 'Delhi NCR',
+                supplier TEXT,
+                source TEXT,
+                effective_date TEXT,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS drawing_files (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                user_id TEXT,
+                file_name TEXT NOT NULL,
+                file_mime TEXT,
+                file_size INTEGER,
+                file_data BLOB,
+                file_path TEXT,
+                file_kind TEXT DEFAULT 'drawing',
+                parsed_text TEXT,
+                created_at TEXT NOT NULL
             );
         """)
         existing = {row["name"] for row in db.execute("PRAGMA table_info(projects)").fetchall()}
@@ -623,6 +861,41 @@ def public_project(row):
     manifest = json.loads(row["page_manifest"]) if "page_manifest" in row.keys() and row["page_manifest"] else None
     project["page_manifest"] = public_page_manifest(manifest, row["id"]) if manifest else None
     return project
+
+def save_detected_features(db, project_id, user_id, features):
+    db.execute("DELETE FROM detected_features WHERE project_id = ?", (project_id,))
+    for feature in features if isinstance(features, list) else []:
+        if not isinstance(feature, dict) or not feature.get("name"):
+            continue
+        db.execute(
+            """
+            INSERT INTO detected_features
+            (id, project_id, user_id, name, category, area_sqft, quantity, unit, confidence, source, included, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                uid(),
+                project_id,
+                user_id,
+                str(feature.get("name") or "")[:80],
+                str(feature.get("category") or "detected_space")[:60],
+                safe_float(feature.get("area_sqft"), 0, 0),
+                safe_float(feature.get("quantity"), 1, 0),
+                str(feature.get("unit") or "space")[:30],
+                str(feature.get("confidence") or "medium")[:20],
+                str(feature.get("source") or "")[:240],
+                bool(feature.get("included", True)),
+                now(),
+            )
+        )
+
+def count_actual_waitlist():
+    return get_db().execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
+
+def db_blob(data):
+    if USE_POSTGRES and psycopg2 is not None:
+        return psycopg2.Binary(data)
+    return sqlite3.Binary(data)
 
 def require_admin_key():
     return request.args.get("key") == ADMIN_KEY or request.headers.get("X-Admin-Key") == ADMIN_KEY
@@ -742,6 +1015,177 @@ def extract_hvac_takeoff(text):
         total_cfm += qty * cfm
     return {"equipment": equipment[:40], "total_tr": round(total_tr, 2), "total_cfm": round(total_cfm, 2)}
 
+VISIBLE_AMENITY_PATTERNS = {
+    "swimming_pool": [r"\bswimming\s+pool\b", r"\bpool\b", r"\bjacuzzi\b"],
+    "sauna": [r"\bsauna\b", r"\bsteam\s+room\b", r"\bsteam\b"],
+    "modular_kitchen": [r"\bmodular\s+kitchen\b", r"\bkitchen\b", r"\bshow\s+kitchen\b"],
+    "home_automation": [r"\bhome\s+automation\b", r"\bsmart\s+home\b", r"\bautomation\b", r"\bsecurity\s+control\b", r"\bav\s+control\b"],
+    "pergola": [r"\bpergola\b", r"\bcovered\s+sitting\b", r"\bcovered\s+seating\b"],
+    "fire_pit": [r"\bfire\s*pit\b", r"\bbonfire\b"],
+    "bar": [r"\bbar\b", r"\blounge\s+bar\b"],
+    "gym": [r"\bgym\b", r"\bfitness\b"],
+    "home_theater": [r"\bhome\s+theat(?:er|re)\b", r"\btheat(?:er|re)\b", r"\bmedia\s+room\b"],
+}
+
+VISIBLE_FEATURE_PATTERNS = {
+    "Indoor gym": ("amenity", [r"\bindoor\s+gym\b", r"\bgym\b", r"\bfitness\b"]),
+    "Indoor games room": ("amenity", [r"\bindoor\s+games?\b", r"\bgames?\s+room\b"]),
+    "Kids play area": ("amenity", [r"\bkids?\s+play\b", r"\bchildren'?s?\s+play\b", r"\btoddler\s+play\b"]),
+    "Clubhouse": ("amenity", [r"\bclub\s*house\b", r"\bclubhouse\b"]),
+    "Party hall": ("amenity", [r"\bparty\s+hall\b", r"\bmultipurpose\s+hall\b", r"\bcommunity\s+hall\b"]),
+    "Banquet hall": ("amenity", [r"\bbanquet\b", r"\bevent\s+hall\b"]),
+    "Creche": ("amenity", [r"\bcreche\b", r"\bday\s*care\b"]),
+    "Society office": ("support", [r"\bsociety\s+office\b", r"\bassociation\s+office\b"]),
+    "Guard room": ("security", [r"\bguard\s+room\b", r"\bsecurity\s+room\b"]),
+    "STP": ("services", [r"\bstp\b", r"\bsewage\s+treatment\b"]),
+    "Pump room": ("services", [r"\bpump\s+room\b"]),
+    "Classroom": ("education", [r"\bclass\s*room\b", r"\bclassroom\b"]),
+    "Laboratory": ("education", [r"\blab(?:oratory)?\b", r"\bphysics\s+lab\b", r"\bchemistry\s+lab\b", r"\bbiology\s+lab\b", r"\bcomputer\s+lab\b"]),
+    "Library": ("education", [r"\blibrary\b"]),
+    "Auditorium": ("education", [r"\bauditorium\b"]),
+    "Cafeteria": ("food_service", [r"\bcafeteria\b", r"\bcanteen\b"]),
+    "Infirmary": ("healthcare", [r"\binfirmary\b", r"\bfirst\s+aid\b"]),
+    "Pantry": ("food_service", [r"\bpantry\b"]),
+    "Restaurant": ("food_service", [r"\brestaurant\b", r"\bdining\b"]),
+    "Commercial kitchen": ("food_service", [r"\bcommercial\s+kitchen\b", r"\bkitchen\b"]),
+    "Laundry": ("hospitality", [r"\blaundry\b"]),
+    "Spa": ("hospitality", [r"\bspa\b", r"\bmassage\b"]),
+    "Lobby": ("hospitality", [r"\blobby\b", r"\breception\b"]),
+    "Back of house": ("hospitality", [r"\bboh\b", r"\bback\s+of\s+house\b", r"\bservice\s+corridor\b"]),
+    "Food court": ("retail", [r"\bfood\s+court\b"]),
+    "Anchor store": ("retail", [r"\banchor\s+store\b", r"\bhypermarket\b"]),
+    "Escalator": ("vertical_transport", [r"\bescalator\b"]),
+    "Atrium": ("retail", [r"\batrium\b"]),
+    "ICU": ("healthcare", [r"\bicu\b", r"\bintensive\s+care\b"]),
+    "Operation theatre": ("healthcare", [r"\bot\b", r"\boperation\s+theat(?:er|re)\b"]),
+    "Ward": ("healthcare", [r"\bward\b", r"\bpatient\s+room\b"]),
+    "Pharmacy": ("healthcare", [r"\bpharmacy\b"]),
+    "Diagnostic lab": ("healthcare", [r"\bdiagnostic\b", r"\bpathology\b", r"\bradiology\b"]),
+    "Medical gas room": ("healthcare", [r"\bmedical\s+gas\b", r"\bmgps\b"]),
+    "Dock bay": ("warehouse", [r"\bdock\s+bay\b", r"\bloading\s+dock\b"]),
+    "Loading area": ("warehouse", [r"\bloading\s+area\b", r"\bloading\b"]),
+    "PEB shed": ("warehouse", [r"\bpeb\b", r"\bpre[-\s]?engineered\b"]),
+    "VDF flooring": ("warehouse", [r"\bvdf\b", r"\bvacuum\s+dewatered\b"]),
+}
+
+FEATURE_RATE_RULES = [
+    (["gym", "games", "clubhouse", "party hall", "banquet", "auditorium"], "sqft", 2200),
+    (["kids play", "creche", "society office", "guard room", "library", "classroom", "lobby", "reception"], "sqft", 1600),
+    (["lab", "laboratory", "diagnostic", "pharmacy", "icu", "operation theatre", "medical gas"], "sqft", 3200),
+    (["kitchen", "pantry", "restaurant", "cafeteria", "canteen", "food court"], "sqft", 2800),
+    (["laundry", "spa", "boh", "back of house"], "sqft", 2400),
+    (["stp", "pump room"], "set", 850000),
+    (["escalator"], "unit", 2800000),
+    (["dock", "loading", "peb", "vdf"], "sqft", 650),
+]
+
+def feature_rate(name, category=""):
+    haystack = f"{name} {category}".lower()
+    for keywords, unit, rate in FEATURE_RATE_RULES:
+        if any(keyword in haystack for keyword in keywords):
+            return unit, rate
+    return "sqft", 1500
+
+def sqm_to_sqft(value):
+    return safe_float(value, 0, 0) * 10.7639
+
+def extract_labeled_area_sqft(text, labels):
+    if not text:
+        return 0
+    label_pattern = "|".join(re.escape(label) for label in labels)
+    patterns = [
+        rf"(?:{label_pattern})\s*(?:area)?\s*[:=\-]?\s*(\d+(?:\.\d+)?)\s*(?:sq\.?\s*m|sqm|m2|m²)",
+        rf"(\d+(?:\.\d+)?)\s*(?:sq\.?\s*m|sqm|m2|m²)\s*(?:{label_pattern})",
+        rf"(?:{label_pattern})\s*(?:area)?\s*[:=\-]?\s*(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|sft|ft2|ft²)",
+        rf"(\d+(?:,\d+)*(?:\.\d+)?)\s*(?:sq\.?\s*ft|sqft|sft|ft2|ft²)\s*(?:{label_pattern})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, text, re.I)
+        if not match:
+            continue
+        raw = match.group(1).replace(",", "")
+        value = safe_float(raw, 0, 0)
+        if not value:
+            continue
+        return round(sqm_to_sqft(value) if re.search(r"(sq\.?\s*m|sqm|m2|m²)", match.group(0), re.I) else value, 2)
+    return 0
+
+def enrich_visible_features_from_text(analysis, text):
+    if not text:
+        return analysis
+    review = analysis.setdefault("drawing_review", {})
+    assumptions = review.setdefault("assumptions", [])
+    amenities = analysis.setdefault("luxury_amenities", {})
+    existing_features = analysis.get("detected_features") if isinstance(analysis.get("detected_features"), list) else []
+    features = [f for f in existing_features if isinstance(f, dict)]
+    feature_names = {str(f.get("name") or "").strip().lower() for f in features}
+    detected = []
+    for key, patterns in VISIBLE_AMENITY_PATTERNS.items():
+        if any(re.search(pattern, text, re.I) for pattern in patterns):
+            if not amenities.get(key):
+                amenities[key] = True
+            detected.append(key.replace("_", " "))
+    if detected:
+        assumptions.append("Auto-selected visible amenities from drawing labels: " + ", ".join(sorted(set(detected))) + ".")
+
+    detected_feature_names = []
+    for feature_name, (category, patterns) in VISIBLE_FEATURE_PATTERNS.items():
+        evidence = ""
+        for pattern in patterns:
+            match = re.search(pattern, text, re.I)
+            if match:
+                start = max(0, match.start() - 45)
+                end = min(len(text), match.end() + 75)
+                evidence = re.sub(r"\s+", " ", text[start:end]).strip()
+                break
+        if not evidence or feature_name.lower() in feature_names:
+            continue
+        area = extract_labeled_area_sqft(text, [feature_name, feature_name.lower()])
+        features.append({
+            "name": feature_name,
+            "category": category,
+            "area_sqft": int(area) if area else 0,
+            "quantity": 1,
+            "unit": "space",
+            "confidence": "medium",
+            "source": f"visible_pdf_text: {evidence[:160]}",
+            "included": True,
+        })
+        feature_names.add(feature_name.lower())
+        detected_feature_names.append(feature_name)
+    if detected_feature_names:
+        assumptions.append("Detected labelled project features from PDF text: " + ", ".join(sorted(set(detected_feature_names))) + ".")
+    analysis["detected_features"] = features[:80]
+
+    plot_area = extract_labeled_area_sqft(text, ["plot", "plot area", "site", "site area", "land", "land area", "property area", "khasra area"])
+    if plot_area:
+        analysis["plot_area_sqft"] = int(plot_area)
+        assumptions.append(f"Plot/site area was read from drawing text as approximately {int(plot_area)} sqft.")
+
+    floor_wise = analysis.setdefault("floor_wise_areas", {})
+    floor_labels = {
+        "basement": ["basement", "basement floor", "lower ground"],
+        "ground": ["ground floor", "g floor", "gf"],
+        "first": ["first floor", "1st floor", "ff"],
+        "second": ["second floor", "2nd floor"],
+        "terrace": ["terrace", "roof", "roof plan"],
+        "pool_landscape": ["pool deck", "landscape", "landscape area", "pool landscape"],
+    }
+    floor_hits = []
+    for key, labels in floor_labels.items():
+        if any(re.search(rf"\b{re.escape(label)}\b", text, re.I) for label in labels):
+            floor_hits.append(key)
+        area = extract_labeled_area_sqft(text, labels)
+        if area:
+            floor_wise[key] = int(area)
+    if "basement" in floor_hits:
+        analysis["basement_levels"] = max(safe_int(analysis.get("basement_levels"), 0, 0), 1)
+    above_grade_hits = [k for k in floor_hits if k in ["ground", "first", "second"]]
+    if above_grade_hits:
+        analysis["total_floors"] = max(safe_int(analysis.get("total_floors"), 1, 1), len(set(above_grade_hits)))
+        assumptions.append("Floor labels detected in drawing text: " + ", ".join(sorted(set(floor_hits))) + ".")
+    return analysis
+
 def enrich_analysis_scope(analysis, project_row=None):
     project_type = normalize_project_type((analysis or {}).get("project_type") or (project_row["project_type"] if project_row and "project_type" in project_row.keys() else "residential_tower"))
     analysis["project_type"] = project_type
@@ -750,6 +1194,7 @@ def enrich_analysis_scope(analysis, project_row=None):
     file_mime = project_row["file_mime"] if project_row and "file_mime" in project_row.keys() else None
     file_name = project_row["file_name"] if project_row and "file_name" in project_row.keys() else ""
     text = extract_file_text(file_path, file_mime)
+    analysis = enrich_visible_features_from_text(analysis, text)
     scope = classify_drawing_scope(file_name, text, analysis)
     analysis.update(scope)
     if scope["drawing_discipline"] == "hvac":
@@ -1026,10 +1471,16 @@ def seed_rate_items(db):
     if db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()["c"]:
         return
     for item in base_rate_rows():
-        db.execute(
-            "INSERT OR IGNORE INTO rate_items (id, category, item, unit, rate, source, city, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (item["id"], item["category"], item["item"], item["unit"], item["rate"], item["source"], item["city"], now())
-        )
+        if USE_POSTGRES:
+            db.execute(
+                "INSERT INTO rate_items (id, category, item, unit, rate, source, city, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(item) DO NOTHING",
+                (item["id"], item["category"], item["item"], item["unit"], item["rate"], item["source"], item["city"], now())
+            )
+        else:
+            db.execute(
+                "INSERT OR IGNORE INTO rate_items (id, category, item, unit, rate, source, city, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (item["id"], item["category"], item["item"], item["unit"], item["rate"], item["source"], item["city"], now())
+            )
 
 def rate_items_by_category():
     rows = get_db().execute("SELECT id, category, item, unit, rate, source, city, updated_at FROM rate_items ORDER BY category, item").fetchall()
@@ -1226,7 +1677,15 @@ def upload_project_drawing(project_id):
             analysis = NULL, estimate = NULL, status = 'uploaded', updated_at = ?
         WHERE id = ?
         """,
-        (file.filename, mime, len(data), sqlite3.Binary(data), file_path, json.dumps(manifest), now(), project_id)
+        (file.filename, mime, len(data), db_blob(data), file_path, json.dumps(manifest), now(), project_id)
+    )
+    db.execute(
+        """
+        INSERT INTO drawing_files
+        (id, project_id, user_id, file_name, file_mime, file_size, file_data, file_path, file_kind, parsed_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (uid(), project_id, g.current_user["id"], file.filename, mime, len(data), db_blob(data), file_path, "drawing", extract_file_text(file_path, mime), now())
     )
     db.commit()
 
@@ -1345,6 +1804,7 @@ def analyze_project(project_id):
         "UPDATE projects SET analysis = ?, estimate = ?, drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
         (json.dumps(analysis), json.dumps(estimate), json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
     )
+    save_detected_features(db, project_id, g.current_user["id"], analysis.get("detected_features"))
     db.commit()
 
     return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
@@ -1371,6 +1831,7 @@ def update_project_analysis(project_id):
         "UPDATE projects SET analysis = ?, estimate = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
         (json.dumps(analysis), json.dumps(estimate), json.dumps(takeoffs), now(), project_id)
     )
+    save_detected_features(db, project_id, g.current_user["id"], analysis.get("detected_features"))
     db.commit()
 
     return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "takeoffs": takeoffs})
@@ -1524,6 +1985,7 @@ def fallback_analysis(project_name, reason, project_type="residential_tower"):
         "hvac_units": [],
         "floor_wise_areas": {"basement": 0, "ground": bua if project_type == "villa" else 0, "first": 0, "second": 0, "terrace": 0, "pool_landscape": 0},
         "luxury_amenities": {"swimming_pool": False, "sauna": False, "modular_kitchen": project_type == "villa", "home_automation": False, "pergola": False, "fire_pit": False, "bar": False, "gym": False, "home_theater": False},
+        "detected_features": [],
         "confidence": "medium",
         "ai_source": "demo_fallback",
         "drawing_review": {
@@ -1802,6 +2264,26 @@ def normalize_analysis(data, project_name):
     }
     amenities = data.get("luxury_amenities") if isinstance(data.get("luxury_amenities"), dict) else {}
     luxury_amenities = {key: bool(amenities.get(key)) for key in ["swimming_pool", "sauna", "modular_kitchen", "home_automation", "pergola", "fire_pit", "bar", "gym", "home_theater"]}
+    detected_raw = data.get("detected_features") if isinstance(data.get("detected_features"), list) else []
+    detected_features = []
+    for feature in detected_raw[:80]:
+        if not isinstance(feature, dict):
+            continue
+        name = str(feature.get("name") or "").strip()
+        source = str(feature.get("source") or feature.get("evidence") or "").strip()
+        confidence = str(feature.get("confidence") or "medium").lower()
+        if not name or (not source and confidence != "high" and not safe_float(feature.get("area_sqft"), 0, 0)):
+            continue
+        detected_features.append({
+            "name": name[:80],
+            "category": str(feature.get("category") or "detected_space").strip()[:60],
+            "area_sqft": safe_float(feature.get("area_sqft"), 0, 0),
+            "quantity": safe_float(feature.get("quantity"), 1, 0),
+            "unit": str(feature.get("unit") or "space").strip()[:30],
+            "confidence": confidence if confidence in ["high", "medium", "low"] else "medium",
+            "source": source[:240],
+            "included": bool(feature.get("included", True)),
+        })
     hvac_units = data.get("hvac_units") if isinstance(data.get("hvac_units"), list) else []
     result = {
         "building_type": str(data.get("building_type") or profile["label"]),
@@ -1823,8 +2305,10 @@ def normalize_analysis(data, project_name):
         "hvac_units": hvac_units,
         "floor_wise_areas": floor_wise_areas,
         "luxury_amenities": luxury_amenities,
+        "detected_features": detected_features,
         "confidence": str(data.get("confidence") or "medium").lower(),
         "ai_source": data.get("ai_source") or "claude",
+        "ai_model": data.get("ai_model") or "",
         "drawing_review": {
             "summary": str(review.get("summary") or data.get("notes") or f"AI extraction generated for {project_name}."),
             "risks": review.get("risks") if isinstance(review.get("risks"), list) else [],
@@ -1848,7 +2332,7 @@ def analyze_drawing_with_ai(project):
 
     mime = project["file_mime"] or "application/pdf"
     b64 = base64.b64encode(file_data).decode("utf-8")
-    provider = AI_PROVIDER or ("gemini" if os.environ.get("GEMINI_API_KEY") else "anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "")
+    provider = AI_PROVIDER or ("anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "gemini" if os.environ.get("GEMINI_API_KEY") else "")
     if provider == "gemini":
         return analyze_with_gemini(project, mime, b64)
     if provider == "anthropic":
@@ -1931,7 +2415,7 @@ def analyze_with_anthropic(project, mime, b64):
 
     payload = {
         "model": ANTHROPIC_MODEL,
-        "max_tokens": 2200,
+        "max_tokens": 5000,
         "temperature": 0,
         "messages": [{
             "role": "user",
@@ -1958,6 +2442,7 @@ def analyze_with_anthropic(project, mime, b64):
         text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
         data = parse_ai_json(text)
         data["ai_source"] = "claude"
+        data["ai_model"] = ANTHROPIC_MODEL
         data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
         return normalize_analysis(data, project["name"])
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
@@ -2217,6 +2702,10 @@ def calculate_estimate(analysis, takeoffs=None):
             "name": "Property Type Specific Scope",
             "items": [],
         },
+        "19_detected_features": {
+            "name": "AI Detected Special Spaces",
+            "items": [],
+        },
         "16_overheads": {
             "name": "Professional Fees, Contingency and Overheads",
             "items": [],
@@ -2311,6 +2800,34 @@ def calculate_estimate(analysis, takeoffs=None):
     divisions["18_property_specific"]["items"] = category_items
     if not divisions["18_property_specific"]["items"]:
         divisions.pop("18_property_specific", None)
+
+    detected_items = []
+    seen_feature_names = set()
+    for feature in analysis.get("detected_features") if isinstance(analysis.get("detected_features"), list) else []:
+        if not isinstance(feature, dict) or not feature.get("included", True):
+            continue
+        name = str(feature.get("name") or "").strip()
+        if not name or name.lower() in seen_feature_names:
+            continue
+        source = str(feature.get("source") or "").strip()
+        confidence = str(feature.get("confidence") or "medium").lower()
+        area = safe_float(feature.get("area_sqft"), 0, 0)
+        qty = safe_float(feature.get("quantity"), 1, 0)
+        if confidence == "low" and not source and not area:
+            continue
+        unit, rate = feature_rate(name, feature.get("category") or "")
+        if unit == "sqft":
+            quantity = area or max(250, physical_bua * 0.006)
+        elif unit == "unit":
+            quantity = max(qty, 1)
+        else:
+            quantity = max(qty, 1)
+        detected_items.append(item(f"Detected feature: {name}", quantity, unit, rate, 18))
+        detected_items[-1]["source"] = source or "AI detected feature"
+        seen_feature_names.add(name.lower())
+    divisions["19_detected_features"]["items"] = detected_items
+    if not divisions["19_detected_features"]["items"]:
+        divisions.pop("19_detected_features", None)
 
     direct_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key != "16_overheads")
     divisions["16_overheads"]["items"] = [
@@ -2885,15 +3402,17 @@ def join_waitlist():
             (name, email, phone, role, city, now())
         )
         db.commit()
-        total = db.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
+        total = WAITLIST_PUBLIC_BASE + db.execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
         return jsonify({"success": True, "message": "You are on the list.", "total": total}), 201
-    except sqlite3.IntegrityError:
+    except Exception as exc:
+        if not (isinstance(exc, sqlite3.IntegrityError) or (USE_POSTGRES and getattr(exc, "pgcode", None) == "23505")):
+            raise
         return jsonify({"success": False, "message": "This email is already registered."}), 409
 
 @app.route("/api/waitlist/count", methods=["GET"])
 def waitlist_count():
-    total = get_db().execute("SELECT COUNT(*) FROM waitlist").fetchone()[0]
-    return jsonify({"total": total})
+    actual = count_actual_waitlist()
+    return jsonify({"total": WAITLIST_PUBLIC_BASE + actual, "actual": actual, "base": WAITLIST_PUBLIC_BASE})
 
 @app.route("/api/waitlist/list", methods=["GET"])
 def waitlist_list():
