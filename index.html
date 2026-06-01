@@ -634,17 +634,19 @@ a{text-decoration:none;color:inherit}
 .amenity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 .check-row{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--bg);padding:10px 12px;border-radius:var(--radius);font-size:.8rem;color:var(--dim)}
 .check-row input{width:auto;accent-color:var(--accent)}
-.scenario-shell{display:grid;grid-template-columns:360px 1fr;gap:24px}
-.scenario-controls{background:var(--surface);border:1px solid var(--border);padding:24px;border-radius:var(--radius)}
-.scenario-controls .form-field{margin-bottom:16px}
+.scenario-shell{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+.scenario-controls{background:var(--surface);border:1px solid var(--border);padding:20px;border-radius:var(--radius);display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 16px}
+.scenario-controls .form-field{margin-bottom:0}
 .scenario-controls input[type="range"]{width:100%;accent-color:var(--accent)}
-.scenario-main{display:grid;grid-template-columns:1fr 360px;gap:24px}
+.scenario-main{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;min-width:0}
+.scenario-main>.massing-card{min-height:clamp(460px,64vh,720px)}
+.scenario-main>.massing-card canvas{min-height:clamp(460px,64vh,720px)}
 .massing-card{background:#080808;border:1px solid var(--border);min-height:420px;position:relative;overflow:hidden;border-radius:var(--radius)}
 .massing-card canvas{width:100%;height:100%;display:block;min-height:420px}
 .massing-fallback{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:44px;perspective:900px;background:linear-gradient(180deg,#0a0a0a,#050505)}
 .massing-building{width:160px;transform:rotateX(58deg) rotateZ(-34deg);transform-style:preserve-3d}
 .massing-floor{height:14px;border:1px solid rgba(126,184,201,.45);background:rgba(126,184,201,.12);box-shadow:0 8px 26px rgba(126,184,201,.08);margin-bottom:3px}
-.scenario-summary{display:grid;gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:24px}
+.scenario-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:24px}
 .scenario-metric{background:var(--surface);padding:22px}
 .scenario-metric-label{font-family:var(--mono);font-size:.56rem;letter-spacing:.15em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
 .scenario-metric-value{font-family:var(--syne);font-size:1.55rem;font-weight:800;color:var(--white)}
@@ -779,6 +781,8 @@ a{text-decoration:none;color:inherit}
   .stats-row{grid-template-columns:1fr 1fr}
   .analysis-grid{grid-template-columns:1fr}
   .review-grid,.scenario-shell,.scenario-main{grid-template-columns:1fr}
+  .scenario-controls{grid-template-columns:1fr}
+  .scenario-summary{grid-template-columns:1fr 1fr}
   .intel-grid{grid-template-columns:1fr 1fr}
   .kv-grid{grid-template-columns:1fr}
   .edit-grid{grid-template-columns:1fr 1fr}
@@ -1283,14 +1287,14 @@ const api={
 // ── FORMAT HELPERS ───────────────────────────────────────────────────────────
 const fmt={
   inr:(n)=>{
-    if(!n||isNaN(n))return "—";
+    if(n===null||n===undefined||n===""||isNaN(n))return "—";
     if(n>=10000000)return `₹${(n/10000000).toFixed(2)} Cr`;
     if(n>=100000)return `₹${(n/100000).toFixed(2)} L`;
     return `₹${Number(n).toLocaleString("en-IN")}`;
   },
-  inrFull:(n)=>n?`₹${Number(n).toLocaleString("en-IN")}`:"—",
-  num:(n)=>n?Number(n).toLocaleString("en-IN"):"—",
-  sqft:(n)=>n?`${Number(n).toLocaleString("en-IN")} sqft`:"—",
+  inrFull:(n)=>n===null||n===undefined||n===""||isNaN(n)?"—":`₹${Number(n).toLocaleString("en-IN")}`,
+  num:(n)=>n===null||n===undefined||n===""||isNaN(n)?"—":Number(n).toLocaleString("en-IN"),
+  sqft:(n)=>n===null||n===undefined||n===""||isNaN(n)?"—":`${Number(n).toLocaleString("en-IN")} sqft`,
   date:(s)=>s?new Date(s).toLocaleDateString("en-IN",{day:"2-digit",month:"short",year:"numeric"}):"—",
 };
 
@@ -1504,7 +1508,9 @@ function NewProjectModal({onClose,onCreate}){
     ["mall_retail","Mall / Retail","atrium, escalators, food court"],
     ["banquet_hall","Banquet Hall","kitchen, AV, acoustic ceiling"],
     ["hotel_hospitality","Hotel","rooms, BOH, public areas"],
-    ["industrial_warehouse","Warehouse","PEB, docks, industrial floor"]
+    ["industrial_warehouse","Warehouse","PEB, docks, industrial floor"],
+    ["school_institution","School / Institution","classrooms, labs, campus safety"],
+    ["hospital_healthcare","Hospital / Healthcare","clinical services, medical gas, backup"]
   ];
 
   async function submit(e){
@@ -1579,6 +1585,9 @@ function DrawingReview({analysis}){
     ):React.createElement("p",{style:{color:"var(--dim)",fontSize:".85rem"}},"No issues flagged.")
   );
   return React.createElement("div",{className:"workflow-stack"},
+    analysis.estimate_scope==="discipline_only"&&React.createElement("div",{className:"workflow-hint"},
+      `Scope notice: this upload was classified as ${analysis.drawing_discipline||"discipline"}-only. The generated BOQ covers that package only, not the complete ${analysis.building_type||"building"} construction cost. Upload the architectural, structural and remaining MEP set for a full-project estimate.`
+    ),
     React.createElement("div",{className:"approval-hero"},
       React.createElement("div",{className:"info-card"},
         React.createElement("div",{className:"info-card-title"},"AI Approval Summary"),
@@ -1846,6 +1855,18 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
       mep:"Lower finish load with industrial electrical and fire systems",
       special:"PEB roofing/cladding, docks, shutters and heavy-duty flooring",
       inputs:"floor area, dock bays, clear height, floor load and fire category"
+    },
+    school_institution:{
+      basis:"Classrooms, labs, library, assembly and campus circulation",
+      mep:"Public address, access control, fire safety and institutional plumbing",
+      special:"Classroom/lab fit-out, assembly areas and campus safety systems",
+      inputs:"student capacity, classroom count, lab area, assembly and sports scope"
+    },
+    hospital_healthcare:{
+      basis:"Bed count, clinical departments, OT/ICU areas and public circulation",
+      mep:"Medical gas, nurse call, hospital HVAC, backup power and fire systems",
+      special:"Clinical services, OT/ICU allowance, BMS and filtration systems",
+      inputs:"beds, OT/ICU area, departments, medical gas and backup requirements"
     }
   };
   const category=categoryNotes[form.project_type]||categoryNotes.residential_tower;
@@ -1858,7 +1879,7 @@ function ExtractionEditor({projectId,analysis,onUpdated,notify,onSaved,actionLab
     React.createElement("div",{className:"edit-grid"},
       React.createElement("div",{className:"form-field"},React.createElement("label",null,"Building Type"),React.createElement("input",{value:form.building_type,onChange:e=>set("building_type",e.target.value)})),
       React.createElement("div",{className:"form-field"},React.createElement("label",null,"Project Type"),React.createElement("select",{value:form.project_type,onChange:e=>set("project_type",e.target.value)},
-        [["residential_tower","Residential Tower"],["group_housing","Group Housing"],["villa","Villa / Independent House"],["commercial_office","Commercial Office"],["mall_retail","Mall / Retail"],["banquet_hall","Banquet Hall"],["hotel_hospitality","Hotel"],["industrial_warehouse","Industrial / Warehouse"]].map(([value,label])=>React.createElement("option",{value,key:value},label))
+        [["residential_tower","Residential Tower"],["group_housing","Group Housing"],["villa","Villa / Independent House"],["commercial_office","Commercial Office"],["mall_retail","Mall / Retail"],["banquet_hall","Banquet Hall"],["hotel_hospitality","Hotel"],["industrial_warehouse","Industrial / Warehouse"],["school_institution","School / Institution"],["hospital_healthcare","Hospital / Healthcare"]].map(([value,label])=>React.createElement("option",{value,key:value},label))
       )),
       input("total_floors","Floors"),
       input("total_units","Units"),
@@ -3294,11 +3315,14 @@ function ProjectDetail({projectId,onBack,notify}){
   const TakeoffStep=()=>takeoffs?React.createElement(TakeoffSummary,{projectId,takeoffs,onUpdated:handleDrawingUpdate,notify,onSaved:goNext,editable:true}):React.createElement(StepPlaceholder,{title:"Takeoffs are not generated yet",body:"Generate drawing intelligence first. After sheets and regions are available, Nirman.AI creates wall, slab, facade, glazing, flooring, plaster and MEP allowances.",action:()=>setActiveStep("sheets"),label:"Go to Drawing Pages"});
 
   const CostEstimateStep=()=>!hasEstimate?React.createElement(StepPlaceholder,{title:"Cost estimate is not ready",body:"Run AI review first. The backend will create the BOQ, GST summary and project estimate from the reviewed data.",action:canAnalyze?analyze:()=>setActiveStep("review"),label:canAnalyze?"Generate Estimate":"Go to Review"}):React.createElement("div",{className:"workflow-stack"},
+    analysis?.estimate_scope==="discipline_only"&&React.createElement("div",{className:"workflow-hint"},
+      `Package estimate only: ${analysis.drawing_discipline||"discipline"} drawing detected. This is not the full ${analysis.building_type||"project"} construction estimate.`
+    ),
     React.createElement(ReportActions,{project,notify}),
     React.createElement(BOQEditor,{projectId,estimate,onUpdated:handleEstimateUpdate,notify,onSaved:goNext}),
     React.createElement("div",{className:"cost-summary"},
       React.createElement("div",{className:"cost-summary-grid"},
-        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},"Total Construction Cost"),React.createElement("div",{className:"cost-sum-value"},fmt.inr(estimate.total_with_gst)),React.createElement("div",{className:"cost-sum-sub"},"Including 12% GST")),
+        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},analysis?.estimate_scope==="discipline_only"?"Package Estimate":"Total Construction Cost"),React.createElement("div",{className:"cost-sum-value"},fmt.inr(estimate.total_with_gst)),React.createElement("div",{className:"cost-sum-sub"},analysis?.estimate_scope==="discipline_only"?"Including applicable GST":"Including applicable GST")),
         React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},"Cost per Sqft"),React.createElement("div",{className:"cost-sum-value"},`₹${fmt.num(estimate.cost_per_sqft)}`),React.createElement("div",{className:"cost-sum-sub"},"Built-up area basis")),
         React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},"Built-up Area"),React.createElement("div",{className:"cost-sum-value"},fmt.sqft(estimate.built_up_area)),React.createElement("div",{className:"cost-sum-sub"},estimate.rates_source))
       )
@@ -3324,7 +3348,7 @@ function ProjectDetail({projectId,onBack,notify}){
     ),
     React.createElement("div",{className:"gst-summary"},
       React.createElement("div",{className:"gst-row"},React.createElement("span",{className:"gst-label"},"Subtotal (before GST)"),React.createElement("span",{className:"gst-val"},fmt.inr(estimate.subtotal))),
-      React.createElement("div",{className:"gst-row"},React.createElement("span",{className:"gst-label"},"GST @ 12%"),React.createElement("span",{className:"gst-val"},fmt.inr(estimate.gst_12pct))),
+      React.createElement("div",{className:"gst-row"},React.createElement("span",{className:"gst-label"},"Applicable GST"),React.createElement("span",{className:"gst-val"},fmt.inr(estimate.gst_12pct))),
       React.createElement("div",{className:"gst-row total"},React.createElement("span",{className:"gst-label"},"Total Project Cost"),React.createElement("span",{className:"gst-val"},fmt.inr(estimate.total_with_gst)))
     ),
     React.createElement("div",{className:"disclaimer"},estimate.disclaimer)

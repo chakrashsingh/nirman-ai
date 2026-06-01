@@ -103,6 +103,24 @@ PROPERTY_TYPES = {
         "default_plot_factor": 1.75,
         "default_lift_count": 0,
     },
+    "school_institution": {
+        "label": "School / Institution",
+        "default_floors": 4,
+        "default_units": 1,
+        "default_bua": 65000,
+        "default_carpet_factor": 0.76,
+        "default_plot_factor": 0.85,
+        "default_lift_count": 1,
+    },
+    "hospital_healthcare": {
+        "label": "Hospital / Healthcare",
+        "default_floors": 8,
+        "default_units": 100,
+        "default_bua": 120000,
+        "default_carpet_factor": 0.70,
+        "default_plot_factor": 0.42,
+        "default_lift_count": 5,
+    },
 }
 
 DRAWING_DISCIPLINES = {
@@ -232,9 +250,38 @@ PROPERTY_COST_PROFILES = {
         "hvac_support_rate": 18,
         "finish_multiplier": 0.72,
     },
+    "school_institution": {
+        "rcc_factor": 0.095,
+        "steel_factor": 7.6,
+        "electrical_rate": 145,
+        "plumbing_per_unit": 0,
+        "plumbing_sqft_rate": 48,
+        "fire_rate": 58,
+        "facade_factor": 0.40,
+        "glazing_factor": 0.16,
+        "flooring_factor": 0.82,
+        "door_area_divisor": 550,
+        "sanitary_area_divisor": 1500,
+        "hvac_support_rate": 38,
+        "finish_multiplier": 1.05,
+    },
+    "hospital_healthcare": {
+        "rcc_factor": 0.118,
+        "steel_factor": 9.4,
+        "electrical_rate": 275,
+        "plumbing_per_unit": 68000,
+        "fire_rate": 96,
+        "facade_factor": 0.48,
+        "glazing_factor": 0.20,
+        "flooring_factor": 0.86,
+        "door_factor": 1.8,
+        "sanitary_factor": 1.1,
+        "hvac_support_rate": 185,
+        "finish_multiplier": 1.38,
+    },
 }
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-pro-preview")
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_UPLOADS = {
@@ -242,6 +289,18 @@ ALLOWED_UPLOADS = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+}
+
+SPEC_FACTORS = {
+    "concrete_grade": {"M20": 0.96, "M25": 1.0, "M30": 1.055, "M35": 1.10},
+    "cement_type": {"PPC": 0.985, "OPC 43": 1.0, "OPC 53": 1.02},
+    "finish_level": {"economy": 0.88, "standard": 1.0, "premium": 1.22, "luxury": 1.45},
+    "flooring": {"ceramic": 0.90, "vitrified": 1.0, "marble": 1.35, "wooden": 1.28},
+    "facade": {"paint": 1.0, "texture": 1.12, "stone": 1.42, "glass": 1.95},
+    "wall_system": {"brick": 1.08, "aac_block": 1.0, "flyash_block": 0.96, "drywall": 1.18},
+    "window_glazing": {"standard_upvc": 1.0, "aluminium": 1.12, "double_glazed": 1.36, "curtain_wall": 1.85},
+    "electrical_spec": {"basic": 0.88, "standard": 1.0, "premium": 1.18, "home_automation": 1.42},
+    "plumbing_spec": {"basic": 0.9, "standard": 1.0, "premium": 1.2, "luxury": 1.38},
 }
 
 RATE_LIBRARY = {
@@ -261,7 +320,7 @@ RATE_LIBRARY = {
         {"item": "Shuttering carpenter", "unit": "day", "rate": 1100, "source": "Delhi NCR seed"},
         {"item": "Steel fixer", "unit": "day", "rate": 1050, "source": "Delhi NCR seed"},
     ],
-    "spec_options": SPEC_FACTORS if "SPEC_FACTORS" in globals() else {},
+    "spec_options": SPEC_FACTORS,
 }
 
 NIRMAN_EXTRACTION_PROMPT = """
@@ -278,7 +337,7 @@ Your job:
 Return this exact JSON shape:
 {
   "building_type": "Residential Tower",
-  "project_type": "residential_tower|group_housing|villa|commercial_office|mall_retail|banquet_hall|hotel_hospitality|industrial_warehouse",
+  "project_type": "residential_tower|group_housing|villa|commercial_office|mall_retail|banquet_hall|hotel_hospitality|industrial_warehouse|school_institution|hospital_healthcare",
   "drawing_discipline": "architectural|hvac|electrical|plumbing|fire|structural|interior",
   "estimate_scope": "full_project|discipline_only",
   "scope_reason": "why this should be a full BOQ or a discipline-only estimate",
@@ -362,6 +421,7 @@ Rules:
 - If the sheet is HVAC, electrical, plumbing, fire, structural, or interior-only, set estimate_scope to "discipline_only" and do not generate full-project assumptions.
 - If the selected/building type is villa or independent house, do not assume tower-style lifts, basements or apartment unit mixes.
 - If the project is a standalone villa/bungalow, set total_units = 1, building_type = "Villa", estimate floor_wise_areas, detect amenities such as pool/sauna/bar/gym/home theater/pergola/fire pit, and list HVAC units with hp_rating when visible.
+- Use school_institution for schools, colleges and educational campuses. Use hospital_healthcare for hospitals, clinics and healthcare buildings.
 - Never include markdown, commentary or code fences.
 """
 
@@ -589,6 +649,11 @@ def normalize_project_type(value):
         "banquet": "banquet_hall",
         "hotel": "hotel_hospitality",
         "warehouse": "industrial_warehouse",
+        "school": "school_institution",
+        "institution": "school_institution",
+        "college": "school_institution",
+        "hospital": "hospital_healthcare",
+        "healthcare": "hospital_healthcare",
     }
     key = aliases.get(key, key)
     return key if key in PROPERTY_TYPES else "residential_tower"
@@ -665,6 +730,9 @@ def extract_hvac_takeoff(text):
         cfm = safe_float(cfm_match.group(1).replace(",", ""), 0, 0) if cfm_match else 0
         lowered = label.lower()
         eq_type = "outdoor unit" if "odu" in lowered else "ductable unit" if "duct" in lowered else "hi-wall unit" if "wall" in lowered else "cassette unit" if "cassette" in lowered else "indoor unit"
+        if eq_type == "outdoor unit":
+            tr = 0
+            cfm = 0
         equipment.append({"type": eq_type, "qty": qty, "hp": hp, "tr": tr, "cfm": cfm, "notes": label or eq_type})
         total_tr += qty * tr
         total_cfm += qty * cfm
@@ -1416,10 +1484,12 @@ def default_unit_mix(project_type, total_units):
     project_type = normalize_project_type(project_type)
     if project_type == "villa":
         return [{"type": "Villa", "count": 1, "carpet_area_sqft": 5800}]
-    if project_type in ["commercial_office", "mall_retail", "banquet_hall", "industrial_warehouse"]:
+    if project_type in ["commercial_office", "mall_retail", "banquet_hall", "industrial_warehouse", "school_institution"]:
         return [{"type": PROPERTY_TYPES[project_type]["label"], "count": 1, "carpet_area_sqft": int(PROPERTY_TYPES[project_type]["default_bua"] * PROPERTY_TYPES[project_type]["default_carpet_factor"])}]
     if project_type == "hotel_hospitality":
         return [{"type": "Guest Room", "count": max(total_units, 1), "carpet_area_sqft": 420}]
+    if project_type == "hospital_healthcare":
+        return [{"type": "Hospital Bed", "count": max(total_units, 1), "carpet_area_sqft": 760}]
     return [
         {"type": "2BHK", "count": max(total_units * 2 // 3, 1), "carpet_area_sqft": 850},
         {"type": "3BHK", "count": max(total_units // 3, 1), "carpet_area_sqft": 1200},
@@ -1978,6 +2048,8 @@ def calculate_estimate(analysis, takeoffs=None):
     plumbing_qty = units if plumbing_per_unit else physical_bua
     plumbing_rate = plumbing_per_unit if plumbing_per_unit else plumbing_sqft_rate
     lift_qty = lifts if not is_villa else max(lifts, 0)
+    wet_area_waterproofing = units * 95 if category.get("sanitary_factor") else physical_bua * 0.04
+    basement_levels = safe_int(analysis.get("basement_levels"), 0, 0)
 
     def item(desc, qty, unit, rate, gst_rate=12):
         rate = rates.get(ESTIMATE_RATE_ALIASES.get(desc, desc), rate)
@@ -2053,7 +2125,7 @@ def calculate_estimate(analysis, takeoffs=None):
         "09_waterproofing": {
             "name": "Waterproofing and Insulation",
             "items": [
-                item("Toilet and wet area waterproofing", units * 95, "sqft", 95),
+                item("Toilet and wet area waterproofing", wet_area_waterproofing, "sqft", 95),
                 item("Terrace waterproofing treatment", bua * 0.085, "sqft", 130),
                 item("Basement retaining wall waterproofing", bua * 0.035, "sqft", 210),
             ],
@@ -2085,7 +2157,7 @@ def calculate_estimate(analysis, takeoffs=None):
         "13_hvac": {
             "name": "Ventilation and Mechanical Services",
             "items": [
-                item("Basement ventilation and jet fans", analysis.get("basement_levels", 1) or 1, "level", 850000),
+                item("Basement ventilation and jet fans", basement_levels, "level", 850000),
                 item("Shaft ventilation and exhaust systems", units, "unit", 4200),
                 item("Common services mechanical supports", bua, "sqft BUA", category["hvac_support_rate"]),
             ],
@@ -2107,7 +2179,7 @@ def calculate_estimate(analysis, takeoffs=None):
             ],
         },
         "17_luxury_amenities": {
-            "name": "Villa Luxury Amenities",
+            "name": "Special Amenities",
             "items": [],
         },
         "18_property_specific": {
@@ -2119,6 +2191,16 @@ def calculate_estimate(analysis, takeoffs=None):
             "items": [],
         },
     }
+
+    if project_type == "industrial_warehouse":
+        divisions["04_structure"]["items"] = [
+            item("PEB primary steel structure design and supply", physical_bua, "sqft BUA", 420, 18),
+            item("Foundation for PEB columns (isolated footings)", physical_bua * 0.012, "cum", 7800),
+        ]
+        divisions.pop("05_masonry", None)
+        divisions["08_facade"]["items"] = [
+            item("Ridge, gutter, flashing and rainwater accessories", physical_bua, "sqft BUA", 42, 18),
+        ]
 
     if is_villa:
         amenities = analysis.get("luxury_amenities") if isinstance(analysis.get("luxury_amenities"), dict) else {}
@@ -2183,6 +2265,18 @@ def calculate_estimate(analysis, takeoffs=None):
             item("Dock levellers, shutters and loading bays", max(2, int(physical_bua / 25000)), "bay", 850000, 18),
             item("Heavy duty FM2/VDF industrial floor finish", physical_bua, "sqft BUA", 210, 18),
         ]
+    elif project_type == "school_institution":
+        category_items = [
+            item("Classroom, laboratory and library fit-out allowance", max(physical_bua * 0.62, 12000), "sqft", 950, 18),
+            item("Assembly, sports and multipurpose area allowance", max(physical_bua * 0.10, 3500), "sqft", 1250, 18),
+            item("Campus safety, access control and public address systems", physical_bua, "sqft BUA", 48, 18),
+        ]
+    elif project_type == "hospital_healthcare":
+        category_items = [
+            item("Medical gas pipeline and nurse call allowance", max(units, 1), "bed", 72000, 18),
+            item("OT, ICU, isolation and clinical services allowance", max(physical_bua * 0.18, 12000), "sqft", 2850, 18),
+            item("Hospital HVAC filtration, BMS and backup systems", physical_bua, "sqft BUA", 210, 18),
+        ]
     divisions["18_property_specific"]["items"] = category_items
     if not divisions["18_property_specific"]["items"]:
         divisions.pop("18_property_specific", None)
@@ -2242,18 +2336,6 @@ SCENARIO_DEFAULTS = {
     "lift_count": None,
 }
 
-SPEC_FACTORS = {
-    "concrete_grade": {"M20": 0.96, "M25": 1.0, "M30": 1.055, "M35": 1.10},
-    "cement_type": {"PPC": 0.985, "OPC 43": 1.0, "OPC 53": 1.02},
-    "finish_level": {"economy": 0.88, "standard": 1.0, "premium": 1.22, "luxury": 1.45},
-    "flooring": {"ceramic": 0.90, "vitrified": 1.0, "marble": 1.35, "wooden": 1.28},
-    "facade": {"paint": 1.0, "texture": 1.12, "stone": 1.42, "glass": 1.95},
-    "wall_system": {"brick": 1.08, "aac_block": 1.0, "flyash_block": 0.96, "drywall": 1.18},
-    "window_glazing": {"standard_upvc": 1.0, "aluminium": 1.12, "double_glazed": 1.36, "curtain_wall": 1.85},
-    "electrical_spec": {"basic": 0.88, "standard": 1.0, "premium": 1.18, "home_automation": 1.42},
-    "plumbing_spec": {"basic": 0.9, "standard": 1.0, "premium": 1.2, "luxury": 1.38},
-}
-
 def normalize_scenario_options(options, analysis):
     options = options or {}
     normalized = dict(SCENARIO_DEFAULTS)
@@ -2278,6 +2360,7 @@ def normalize_scenario_options(options, analysis):
 
 def recalc_estimate_totals(estimate):
     subtotal = 0
+    gst = 0
     for div_key, div in estimate["divisions"].items():
         div_total = 0
         for index, item in enumerate(div.get("items", []), start=1):
@@ -2287,16 +2370,17 @@ def recalc_estimate_totals(estimate):
             item.setdefault("code", f"NIR-CPWD-{div_key.split('_')[0]}-{index:02d}")
             item.setdefault("source", "User-edited BOQ and seed rate library")
             div_total += item["amount"]
+            gst += item["amount"] * (safe_float(item.get("gst_rate"), 12, 0, 28) / 100)
         div["amount"] = div_total
         subtotal += div_total
-    gst = int(subtotal * 0.12)
+    gst = int(gst)
     bua = max(safe_int(estimate.get("built_up_area"), 1, 1), 1)
     estimate["subtotal"] = subtotal
     estimate["gst_12pct"] = gst
     estimate["gst_breakup"] = {
         "taxable_value": subtotal,
-        "cgst_6pct": int(subtotal * 0.06),
-        "sgst_6pct": int(subtotal * 0.06),
+        "cgst_6pct": int(gst / 2),
+        "sgst_6pct": int(gst / 2),
         "igst_12pct": 0,
         "total_gst": gst,
     }
@@ -2650,6 +2734,8 @@ def project_report_csv(project_id):
     writer.writerow(["Taxable Value", estimate.get("subtotal")])
     writer.writerow(["CGST 6%", (estimate.get("gst_breakup") or {}).get("cgst_6pct")])
     writer.writerow(["SGST 6%", (estimate.get("gst_breakup") or {}).get("sgst_6pct")])
+    writer.writerow(["IGST", (estimate.get("gst_breakup") or {}).get("igst_12pct")])
+    writer.writerow(["Total GST", (estimate.get("gst_breakup") or {}).get("total_gst")])
     writer.writerow(["Total With GST", estimate.get("total_with_gst")])
     writer.writerow(["Cost Per Sqft", estimate.get("cost_per_sqft")])
     writer.writerow([])
