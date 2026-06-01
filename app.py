@@ -281,7 +281,11 @@ PROPERTY_COST_PROFILES = {
     },
 }
 ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-pro-preview")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "auto").strip()
+GEMINI_MODEL_PREFERENCE = os.environ.get(
+    "GEMINI_MODEL_PREFERENCE",
+    "gemini-3.5-flash,gemini-2.5-flash,gemini-2.0-flash",
+)
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 ALLOWED_UPLOADS = {
@@ -1851,6 +1855,19 @@ def analyze_drawing_with_ai(project):
         return analyze_with_anthropic(project, mime, b64)
     return fallback_analysis(project["name"], "No AI API key is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY in Render.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
+def gemini_model_candidates():
+    models = []
+    if GEMINI_MODEL and GEMINI_MODEL.lower() != "auto":
+        models.append(GEMINI_MODEL)
+    models.extend([m.strip() for m in GEMINI_MODEL_PREFERENCE.split(",") if m.strip()])
+    seen = set()
+    unique = []
+    for model in models:
+        if model not in seen:
+            unique.append(model)
+            seen.add(model)
+    return unique or ["gemini-3.5-flash"]
+
 def analyze_with_gemini(project, mime, b64):
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
@@ -1869,24 +1886,38 @@ def analyze_with_gemini(project, mime, b64):
             "responseMimeType": "application/json",
         },
     }
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"content-type": "application/json", "x-goog-api-key": api_key},
-        method="POST",
-    )
+    errors = []
     try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            raw = json.loads(resp.read().decode("utf-8"))
-        parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        text = "".join(part.get("text", "") for part in parts)
-        data = parse_ai_json(text)
-        data["ai_source"] = "gemini"
-        data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
-        return normalize_analysis(data, project["name"])
+        for model in gemini_model_candidates():
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"content-type": "application/json", "x-goog-api-key": api_key},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=90) as resp:
+                    raw = json.loads(resp.read().decode("utf-8"))
+                parts = raw.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                text = "".join(part.get("text", "") for part in parts)
+                data = parse_ai_json(text)
+                data["ai_source"] = "gemini"
+                data["ai_model"] = model
+                data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
+                return normalize_analysis(data, project["name"])
+            except urllib.error.HTTPError as exc:
+                errors.append(f"{model}: HTTP {exc.code}")
+                if exc.code not in (400, 403, 404, 429):
+                    raise
+            except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError, IndexError) as exc:
+                errors.append(f"{model}: {exc}")
+                continue
+        raise RuntimeError("; ".join(errors))
     except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError, IndexError) as exc:
         return fallback_analysis(project["name"], f"Gemini analysis failed: {exc}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+    except RuntimeError as exc:
+        return fallback_analysis(project["name"], f"Gemini analysis failed for all configured models: {exc}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
 
 def analyze_with_anthropic(project, mime, b64):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
