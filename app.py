@@ -549,7 +549,11 @@ class PostgresDB:
 
     def executescript(self, script):
         cur = self.conn.cursor()
-        cur.execute(script)
+        # psycopg2 does not support multiple statements in a single execute() call.
+        # Split on semicolons and run each non-empty statement individually.
+        statements = [s.strip() for s in script.split(";") if s.strip()]
+        for stmt in statements:
+            cur.execute(stmt)
         return cur
 
     def commit(self):
@@ -562,6 +566,10 @@ class PostgresDB:
     def convert_sql(sql):
         sql = sql.replace("?", "%s")
         sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
+        # Convert SQLite ON CONFLICT(col) DO UPDATE SET ... = excluded.col
+        # to Postgres syntax (already valid) — no change needed there.
+        # Convert "ON CONFLICT(item) DO NOTHING" for Postgres compatibility.
+        sql = re.sub(r"ON CONFLICT\((\w+)\) DO NOTHING", r"ON CONFLICT(\1) DO NOTHING", sql)
         return sql
 
 def get_db():
@@ -1695,8 +1703,13 @@ def base_rate_rows():
         rows.append({"id": uid(), "category": category, "item": name, "unit": unit, "rate": rate, "source": "CPWD/DSR benchmark seed", "city": "Delhi NCR"})
     return rows
 
+
 def seed_rate_items(db):
-    has_rows = bool(db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()["c"])
+    row = db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()
+    try:
+        has_rows = bool(row["c"])
+    except (TypeError, KeyError, IndexError):
+        has_rows = bool(row[0])
     for item in base_rate_rows():
         if USE_POSTGRES:
             db.execute(
