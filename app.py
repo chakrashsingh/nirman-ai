@@ -11,9 +11,12 @@ import csv
 import io
 import re
 import math
+import time
+import html
 import mimetypes
 import urllib.error
 import urllib.request
+import urllib.parse
 
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
@@ -141,6 +144,17 @@ DRAWING_DISCIPLINES = {
     "structural": "Structural only",
     "interior": "Interior / fit-out only",
 }
+
+LOCATION_COST_FACTORS = [
+    (["lutyens", "chanakyapuri", "jor bagh", "prithviraj road"], 1.32, "Lutyens / prime Delhi bungalow market"),
+    (["malibu", "golf course", "golf course road", "dlf", "gurugram", "gurgaon"], 1.16, "Premium Gurugram/NCR micro-market"),
+    (["south delhi", "vasant", "defence colony", "greater kailash", "saket"], 1.18, "Premium South Delhi micro-market"),
+    (["delhi", "new delhi"], 1.08, "Delhi city market"),
+    (["noida", "greater noida", "yamuna expressway"], 0.98, "Noida/Greater Noida market"),
+    (["faridabad", "ghaziabad"], 0.92, "Peripheral NCR market"),
+    (["mumbai", "thane", "navi mumbai"], 1.22, "Mumbai/MMR market"),
+    (["bengaluru", "bangalore"], 1.12, "Bengaluru market"),
+]
 
 PROPERTY_COST_PROFILES = {
     "residential_tower": {
@@ -289,11 +303,11 @@ PROPERTY_COST_PROFILES = {
         "finish_multiplier": 1.38,
     },
 }
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-20250514")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "auto").strip()
 GEMINI_MODEL_PREFERENCE = os.environ.get(
     "GEMINI_MODEL_PREFERENCE",
-    "gemini-3.5-flash,gemini-2.5-flash,gemini-2.0-flash",
+    "gemini-2.5-pro,gemini-2.5-flash,gemini-2.0-flash",
 )
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
@@ -302,7 +316,10 @@ ALLOWED_UPLOADS = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
+    ".dxf": "application/dxf",
+    ".dwg": "application/octet-stream",
 }
+ENABLE_AI_VALIDATION = os.environ.get("ENABLE_AI_VALIDATION", "true").strip().lower() not in ("0", "false", "no")
 
 SPEC_FACTORS = {
     "concrete_grade": {"M20": 0.96, "M25": 1.0, "M30": 1.055, "M35": 1.10},
@@ -318,20 +335,26 @@ SPEC_FACTORS = {
 
 RATE_LIBRARY = {
     "materials": [
-        {"item": "Cement OPC 43", "unit": "bag", "rate": 380, "source": "Delhi NCR seed"},
-        {"item": "Cement OPC 53", "unit": "bag", "rate": 395, "source": "Delhi NCR seed"},
-        {"item": "PPC Cement", "unit": "bag", "rate": 365, "source": "Delhi NCR seed"},
-        {"item": "TMT Steel Fe500D", "unit": "kg", "rate": 82, "source": "Delhi NCR seed"},
-        {"item": "Ready Mix Concrete M25", "unit": "cum", "rate": 8250, "source": "DSR/market seed"},
-        {"item": "Ready Mix Concrete M30", "unit": "cum", "rate": 8700, "source": "DSR/market seed"},
-        {"item": "AAC/block masonry", "unit": "sqft", "rate": 145, "source": "DSR/market seed"},
-        {"item": "Vitrified flooring", "unit": "sqft", "rate": 165, "source": "DSR/market seed"},
+        {"item": "Cement OPC 43", "unit": "bag", "rate": 430, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Cement OPC 53", "unit": "bag", "rate": 450, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "PPC Cement", "unit": "bag", "rate": 405, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "TMT Steel Fe500D", "unit": "kg", "rate": 90, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Ready Mix Concrete M25", "unit": "cum", "rate": 9500, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Ready Mix Concrete M30", "unit": "cum", "rate": 9900, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "AAC/block masonry", "unit": "sqft", "rate": 175, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Vitrified flooring", "unit": "sqft", "rate": 210, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Premium vitrified / large format flooring", "unit": "sqft", "rate": 285, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Granite / marble flooring allowance", "unit": "sqft", "rate": 420, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Aluminium/uPVC windows with glazing", "unit": "sqft", "rate": 650, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Curtain wall glazing", "unit": "sqft", "rate": 1350, "source": "Delhi NCR 2026 calibrated seed"},
     ],
     "labour": [
-        {"item": "Mason labour", "unit": "day", "rate": 950, "source": "Delhi NCR seed"},
-        {"item": "Helper labour", "unit": "day", "rate": 650, "source": "Delhi NCR seed"},
-        {"item": "Shuttering carpenter", "unit": "day", "rate": 1100, "source": "Delhi NCR seed"},
-        {"item": "Steel fixer", "unit": "day", "rate": 1050, "source": "Delhi NCR seed"},
+        {"item": "Mason labour", "unit": "day", "rate": 1150, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Helper labour", "unit": "day", "rate": 800, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Shuttering carpenter", "unit": "day", "rate": 1350, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Steel fixer", "unit": "day", "rate": 1250, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Electrician labour", "unit": "day", "rate": 1200, "source": "Delhi NCR 2026 calibrated seed"},
+        {"item": "Plumber labour", "unit": "day", "rate": 1150, "source": "Delhi NCR 2026 calibrated seed"},
     ],
     "spec_options": SPEC_FACTORS,
 }
@@ -361,6 +384,7 @@ Return this exact JSON shape:
   "total_carpet_area_sqft": 58000,
   "plot_area_sqft": 12000,
   "structure_type": "RCC Frame",
+  "spec_level": "economy|standard|premium|luxury",
   "basement_levels": 1,
   "parking_spaces": 65,
   "lift_count": 3,
@@ -375,6 +399,22 @@ Return this exact JSON shape:
   "detected_features": [
     {"name":"Indoor gym","category":"amenity","area_sqft":1200,"quantity":1,"unit":"space","confidence":"high","source":"Page 4 label: Indoor Gym","included":true}
   ],
+  "field_confidence": {
+    "total_built_up_area_sqft": "high|medium|low",
+    "plot_area_sqft": "high|medium|low",
+    "total_floors": "high|medium|low",
+    "floor_wise_areas": "high|medium|low",
+    "detected_features": "high|medium|low",
+    "discipline_takeoff": "high|medium|low"
+  },
+  "field_evidence": {
+    "total_built_up_area_sqft": "Page 2 area schedule says ...",
+    "plot_area_sqft": "Title block/site schedule says ...",
+    "total_floors": "Elevation/floor labels show ...",
+    "floor_wise_areas": "Area schedule/floor labels show ...",
+    "detected_features": "Visible labels include ...",
+    "discipline_takeoff": "Equipment schedule or tags show ..."
+  },
   "confidence": "high|medium|low",
   "drawing_review": {
     "summary": "short review",
@@ -439,9 +479,11 @@ Rules:
 - Detect plot/site area from labels such as plot area, site area, land area, khasra area, property area, sq m, sqm, sq.ft, acres or hectares.
 - Detect floor count from labels such as basement, lower ground, ground floor, first floor, second floor, terrace, roof, section markers and elevation floor-height markers.
 - Detect floor-wise areas from area schedules, title blocks, room schedules and plan labels. For villas, fill basement, ground, first, second, terrace and pool_landscape where visible.
+- Detect specification level from drawing notes, title blocks, brand notes and visible labels. Use luxury only for high-end villas/hotels/premium projects with evidence; otherwise use standard.
 - Detect ALL labelled project spaces, amenities and functional rooms from explicit drawing labels. Do not limit detection to villas.
 - Examples: clubhouse, indoor gym, outdoor gym, indoor games, kids play area, creche, party hall, banquet hall, multipurpose hall, society office, guard room, STP, pump room, classrooms, labs, library, auditorium, cafeteria, infirmary, pantry, restaurant, commercial kitchen, laundry, spa, lobby, BOH, anchor store, food court, escalator, atrium, ICU, OT, wards, pharmacy, diagnostic lab, medical gas room, dock bays, PEB shed, VDF flooring and loading area.
 - For every detected feature, add an object to detected_features with a concrete source/evidence string such as page number, visible label, schedule row or title-block note.
+- For every key numeric field, return field_confidence and field_evidence. Use high only when the drawing visibly states it, medium when inferred from visible labels/dimensions, and low when guessed.
 - Set luxury_amenities booleans for backward compatibility only when those exact amenities are visible. The broader detected_features array is the primary source for project-specific estimate additions.
 - If the sheet is HVAC, electrical, plumbing, fire, structural, or interior-only, set estimate_scope to "discipline_only" and do not generate full-project assumptions.
 - If the selected/building type is villa or independent house, do not assume tower-style lifts, basements or apartment unit mixes.
@@ -449,6 +491,27 @@ Rules:
 - In drawing_review.assumptions, include short evidence notes for each auto-selected amenity and each inferred area/floor value.
 - Use school_institution for schools, colleges and educational campuses. Use hospital_healthcare for hospitals, clinics and healthcare buildings.
 - Never include markdown, commentary or code fences.
+"""
+
+NIRMAN_VALIDATION_PROMPT = """
+You are Nirman.AI's senior Indian quantity surveyor validation pass.
+Review the extracted drawing data and the engine-generated BOQ estimate.
+Return ONLY valid JSON with this shape:
+{
+  "status": "ok|needs_review",
+  "summary": "short plain-language validation summary",
+  "flags": [{"severity":"low|medium|high","field":"BUA","message":"what may be wrong","recommendation":"what user should verify"}],
+  "missing_scope": [{"item":"Swimming pool filtration","reason":"pool visible but missing service line","suggested_allowance_inr":350000}],
+  "quantity_corrections": [{"field":"total_built_up_area_sqft","current":7500,"suggested":12000,"confidence":"medium","evidence":"Page 2 area schedule"}],
+  "range_adjustment_pct": 0,
+  "user_questions": ["Confirm sanctioned built-up area from area statement."]
+}
+Rules:
+- Do not invent rates.
+- Do not rewrite the whole estimate.
+- Only flag issues supported by drawing evidence, extracted fields, or obvious construction logic.
+- If the drawing is discipline-only, validate that the report clearly says it is not a full-project BOQ.
+- For Indian projects, call out GST, CPWD/DSR, RERA/statutory, FAR/FSI, MEP and amenity gaps where relevant.
 """
 
 ESTIMATE_RATE_ALIASES = {
@@ -532,6 +595,9 @@ def init_db():
                     company TEXT,
                     role TEXT,
                     city TEXT,
+                    plan TEXT DEFAULT 'free',
+                    usage_month TEXT,
+                    usage_count INTEGER DEFAULT 0,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS projects (
@@ -553,6 +619,7 @@ def init_db():
                     takeoffs TEXT,
                     analysis TEXT,
                     estimate TEXT,
+                    share_token TEXT UNIQUE,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -643,21 +710,68 @@ def init_db():
                     parsed_text TEXT,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS estimate_feedback (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    user_id TEXT,
+                    rating TEXT NOT NULL,
+                    comment TEXT,
+                    actual_cost REAL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS contractor_quotes (
+                    id TEXT PRIMARY KEY,
+                    material TEXT NOT NULL,
+                    unit TEXT NOT NULL,
+                    rate REAL NOT NULL,
+                    city TEXT DEFAULT 'Delhi NCR',
+                    contractor_name TEXT,
+                    source TEXT,
+                    quote_date TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS rate_corrections (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    user_id TEXT,
+                    division TEXT,
+                    item TEXT,
+                    old_rate REAL,
+                    corrected_rate REAL,
+                    city TEXT,
+                    property_type TEXT,
+                    comment TEXT,
+                    created_at TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS report_deliveries (
+                    id TEXT PRIMARY KEY,
+                    project_id TEXT,
+                    user_id TEXT,
+                    channel TEXT NOT NULL,
+                    recipient TEXT,
+                    share_token TEXT,
+                    status TEXT DEFAULT 'created',
+                    created_at TEXT NOT NULL
+                );
             """)
+            ensure_schema(db)
             seed_rate_items(db)
             db.commit()
             return
         db.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                email TEXT NOT NULL UNIQUE,
-                password TEXT NOT NULL,
-                company TEXT,
-                role TEXT,
-                city TEXT,
-                created_at TEXT NOT NULL
-            );
+                CREATE TABLE IF NOT EXISTS users (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    email TEXT NOT NULL UNIQUE,
+                    password TEXT NOT NULL,
+                    company TEXT,
+                    role TEXT,
+                    city TEXT,
+                    plan TEXT DEFAULT 'free',
+                    usage_month TEXT,
+                    usage_count INTEGER DEFAULT 0,
+                    created_at TEXT NOT NULL
+                );
             CREATE TABLE IF NOT EXISTS projects (
                 id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -677,6 +791,7 @@ def init_db():
                 takeoffs TEXT,
                 analysis TEXT,
                 estimate TEXT,
+                share_token TEXT UNIQUE,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -767,6 +882,49 @@ def init_db():
                 parsed_text TEXT,
                 created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS estimate_feedback (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                user_id TEXT,
+                rating TEXT NOT NULL,
+                comment TEXT,
+                actual_cost REAL,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS contractor_quotes (
+                id TEXT PRIMARY KEY,
+                material TEXT NOT NULL,
+                unit TEXT NOT NULL,
+                rate REAL NOT NULL,
+                city TEXT DEFAULT 'Delhi NCR',
+                contractor_name TEXT,
+                source TEXT,
+                quote_date TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS rate_corrections (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                user_id TEXT,
+                division TEXT,
+                item TEXT,
+                old_rate REAL,
+                corrected_rate REAL,
+                city TEXT,
+                property_type TEXT,
+                comment TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS report_deliveries (
+                id TEXT PRIMARY KEY,
+                project_id TEXT,
+                user_id TEXT,
+                channel TEXT NOT NULL,
+                recipient TEXT,
+                share_token TEXT,
+                status TEXT DEFAULT 'created',
+                created_at TEXT NOT NULL
+            );
         """)
         existing = {row["name"] for row in db.execute("PRAGMA table_info(projects)").fetchall()}
         migrations = {
@@ -779,12 +937,35 @@ def init_db():
             "drawing_sheets": "ALTER TABLE projects ADD COLUMN drawing_sheets TEXT",
             "drawing_regions": "ALTER TABLE projects ADD COLUMN drawing_regions TEXT",
             "takeoffs": "ALTER TABLE projects ADD COLUMN takeoffs TEXT",
+            "share_token": "ALTER TABLE projects ADD COLUMN share_token TEXT",
         }
         for col, sql in migrations.items():
             if col not in existing:
                 db.execute(sql)
+        existing_users = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+        user_migrations = {
+            "plan": "ALTER TABLE users ADD COLUMN plan TEXT DEFAULT 'free'",
+            "usage_month": "ALTER TABLE users ADD COLUMN usage_month TEXT",
+            "usage_count": "ALTER TABLE users ADD COLUMN usage_count INTEGER DEFAULT 0",
+        }
+        for col, sql in user_migrations.items():
+            if col not in existing_users:
+                db.execute(sql)
+        ensure_schema(db)
         seed_rate_items(db)
         db.commit()
+
+def ensure_schema(db):
+    if not USE_POSTGRES:
+        return
+    migrations = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free'",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS usage_month TEXT",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0",
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE",
+    ]
+    for sql in migrations:
+        db.execute(sql)
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "nirman-secret-2025")
 
@@ -830,6 +1011,19 @@ def get_current_user():
     if not user_id:
         return None
     return get_db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+
+def record_usage(user_id):
+    if not user_id:
+        return
+    month = datetime.datetime.utcnow().strftime("%Y-%m")
+    try:
+        row = get_db().execute("SELECT usage_month, usage_count FROM users WHERE id = ?", (user_id,)).fetchone()
+        current_month = row["usage_month"] if row and "usage_month" in row.keys() else None
+        current_count = safe_int(row["usage_count"], 0, 0) if row and "usage_count" in row.keys() else 0
+        next_count = current_count + 1 if current_month == month else 1
+        get_db().execute("UPDATE users SET usage_month = ?, usage_count = ? WHERE id = ?", (month, next_count, user_id))
+    except Exception:
+        pass
 
 def require_auth(f):
     from functools import wraps
@@ -904,7 +1098,7 @@ def validate_upload(file):
     filename = (file.filename or "").strip()
     ext = os.path.splitext(filename.lower())[1]
     if ext not in ALLOWED_UPLOADS:
-        return None, None, "Only PDF, PNG, JPG and JPEG drawings are supported."
+        return None, None, "Only PDF, PNG, JPG, JPEG, DXF and DWG drawings are supported."
     data = file.read()
     if not data:
         return None, None, "Uploaded file is empty."
@@ -953,6 +1147,24 @@ def extract_file_text(file_path, file_mime):
             return text[:12000]
         except Exception:
             return ""
+    if file_mime == "application/dxf" or file_path.lower().endswith(".dxf"):
+        try:
+            import ezdxf
+            doc = ezdxf.readfile(file_path)
+            labels = []
+            for entity in doc.modelspace():
+                dxftype = entity.dxftype()
+                if dxftype in ("TEXT", "MTEXT"):
+                    labels.append(getattr(entity, "plain_text", lambda: entity.dxf.text)())
+                elif dxftype in ("LINE", "LWPOLYLINE", "POLYLINE", "INSERT", "DIMENSION"):
+                    labels.append(dxftype)
+                if len(labels) > 2000:
+                    break
+            return "\n".join(str(item) for item in labels)[:12000]
+        except Exception as exc:
+            return f"DXF parsing unavailable or failed: {exc}"
+    if file_path.lower().endswith(".dwg"):
+        return "DWG uploaded. Convert to DXF for exact CAD geometry extraction; Claude will still inspect exported PDF/image drawings."
     return ""
 
 def classify_drawing_scope(file_name="", text="", analysis=None):
@@ -993,8 +1205,9 @@ def extract_hvac_takeoff(text):
     equipment = []
     total_tr = 0.0
     total_cfm = 0.0
+    outdoor_sets = 0
     if not text:
-        return {"equipment": [], "total_tr": 0, "total_cfm": 0}
+        return {"equipment": [], "total_tr": 0, "total_cfm": 0, "outdoor_unit_sets": 0}
     pattern = re.compile(r"(?:(\d+)\s*#\s*)?(\d+(?:\.\d+)?)\s*HP\s*([^\n]{0,80})", re.I)
     for match in pattern.finditer(text):
         qty = int(match.group(1) or 1)
@@ -1010,10 +1223,16 @@ def extract_hvac_takeoff(text):
         if eq_type == "outdoor unit":
             tr = 0
             cfm = 0
+            outdoor_sets += qty
         equipment.append({"type": eq_type, "qty": qty, "hp": hp, "tr": tr, "cfm": cfm, "notes": label or eq_type})
         total_tr += qty * tr
         total_cfm += qty * cfm
-    return {"equipment": equipment[:40], "total_tr": round(total_tr, 2), "total_cfm": round(total_cfm, 2)}
+    if not outdoor_sets:
+        circuit_matches = re.findall(r"\b(?:CKT|CIRCUIT)\s*[-:]?\s*\d+\b[^\n]{0,100}?\bODU\b|\bODU\b[^\n]{0,100}?\b(?:CKT|CIRCUIT)\s*[-:]?\s*\d+\b", text, re.I)
+        outdoor_sets = len(circuit_matches)
+    if not outdoor_sets:
+        outdoor_sets = len(re.findall(r"\bODU\b", text, re.I))
+    return {"equipment": equipment[:40], "total_tr": round(total_tr, 2), "total_cfm": round(total_cfm, 2), "outdoor_unit_sets": int(outdoor_sets)}
 
 VISIBLE_AMENITY_PATTERNS = {
     "swimming_pool": [r"\bswimming\s+pool\b", r"\bpool\b", r"\bjacuzzi\b"],
@@ -1190,6 +1409,15 @@ def enrich_analysis_scope(analysis, project_row=None):
     project_type = normalize_project_type((analysis or {}).get("project_type") or (project_row["project_type"] if project_row and "project_type" in project_row.keys() else "residential_tower"))
     analysis["project_type"] = project_type
     analysis["building_type"] = analysis.get("building_type") or property_profile(project_type)["label"]
+    if project_row:
+        if "address" in project_row.keys() and project_row["address"]:
+            analysis["address"] = analysis.get("address") or project_row["address"]
+        parcel = parse_json_field(project_row, "parcel_data", {})
+        if parcel:
+            analysis["parcel_data"] = parcel
+            analysis["city"] = analysis.get("city") or parcel.get("city")
+            if parcel.get("site_area_sqft") and not safe_float(analysis.get("plot_area_sqft"), 0, 0):
+                analysis["plot_area_sqft"] = parcel.get("site_area_sqft")
     file_path = project_row["file_path"] if project_row and "file_path" in project_row.keys() else None
     file_mime = project_row["file_mime"] if project_row and "file_mime" in project_row.keys() else None
     file_name = project_row["file_name"] if project_row and "file_name" in project_row.keys() else ""
@@ -1447,29 +1675,28 @@ def base_rate_rows():
                 "city": item.get("city") or "Delhi NCR",
             })
     estimate_seed = [
-        ("boq", "Mobilization, barricading and temporary site office", "sqft BUA", 28),
-        ("boq", "Site supervision, safety and statutory coordination", "sqft BUA", 34),
-        ("boq", "Survey, setting out and documentation", "sqft BUA", 16),
-        ("boq", "Bulk excavation in ordinary soil", "cft", 42),
-        ("boq", "Backfilling, compaction and disposal lead", "cft", 38),
-        ("boq", "Anti-termite treatment below plinth", "sqft", 18),
-        ("boq", "PCC 1:4:8 below foundations", "cum", 6900),
-        ("boq", "Centering, shuttering and staging", "sqft", 115),
-        ("boq", "Internal partition masonry", "sqft", 112),
-        ("boq", "Lintel, sill and minor RCC bands", "sqft", 165),
-        ("boq", "Aluminium/uPVC windows with glazing", "sqft", 520),
-        ("boq", "Internal plaster and putty base", "sqft", 42),
-        ("boq", "Internal painting, primer and finish coats", "sqft", 36),
-        ("boq", "External plaster and waterproof putty", "sqft", 68),
-        ("boq", "Weatherproof exterior paint", "sqft", 48),
+        ("boq", "Mobilization, barricading and temporary site office", "sqft BUA", 36),
+        ("boq", "Site supervision, safety and statutory coordination", "sqft BUA", 44),
+        ("boq", "Survey, setting out and documentation", "sqft BUA", 20),
+        ("boq", "Bulk excavation in ordinary soil", "cft", 52),
+        ("boq", "Backfilling, compaction and disposal lead", "cft", 46),
+        ("boq", "Anti-termite treatment below plinth", "sqft", 22),
+        ("boq", "PCC 1:4:8 below foundations", "cum", 7600),
+        ("boq", "Centering, shuttering and staging", "sqft", 135),
+        ("boq", "Internal partition masonry", "sqft", 132),
+        ("boq", "Lintel, sill and minor RCC bands", "sqft", 190),
+        ("boq", "Aluminium/uPVC windows with glazing", "sqft", 650),
+        ("boq", "Internal plaster and putty base", "sqft", 52),
+        ("boq", "Internal painting, primer and finish coats", "sqft", 46),
+        ("boq", "External plaster and waterproof putty", "sqft", 82),
+        ("boq", "Weatherproof exterior paint", "sqft", 58),
     ]
     for category, name, unit, rate in estimate_seed:
         rows.append({"id": uid(), "category": category, "item": name, "unit": unit, "rate": rate, "source": "CPWD/DSR benchmark seed", "city": "Delhi NCR"})
     return rows
 
 def seed_rate_items(db):
-    if db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()["c"]:
-        return
+    has_rows = bool(db.execute("SELECT COUNT(*) AS c FROM rate_items").fetchone()["c"])
     for item in base_rate_rows():
         if USE_POSTGRES:
             db.execute(
@@ -1481,6 +1708,16 @@ def seed_rate_items(db):
                 "INSERT OR IGNORE INTO rate_items (id, category, item, unit, rate, source, city, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (item["id"], item["category"], item["item"], item["unit"], item["rate"], item["source"], item["city"], now())
             )
+        if has_rows:
+            db.execute(
+                """
+                UPDATE rate_items
+                SET category = ?, unit = ?, rate = ?, source = ?, city = ?, updated_at = ?
+                WHERE item = ?
+                  AND (LOWER(COALESCE(source, '')) LIKE '%seed%' OR LOWER(COALESCE(source, '')) LIKE '%benchmark%')
+                """,
+                (item["category"], item["unit"], item["rate"], item["source"], item["city"], now(), item["item"])
+            )
 
 def rate_items_by_category():
     rows = get_db().execute("SELECT id, category, item, unit, rate, source, city, updated_at FROM rate_items ORDER BY category, item").fetchall()
@@ -1491,14 +1728,142 @@ def rate_items_by_category():
         grouped.setdefault(item["category"], []).append(item)
     return grouped
 
-def rate_lookup_map():
+def city_from_analysis(analysis):
+    haystack = " ".join([
+        str(analysis.get("city") or ""),
+        str(analysis.get("address") or ""),
+        str(analysis.get("location") or ""),
+        json.dumps(analysis.get("parcel_data") or {}, default=str),
+    ]).lower()
+    if "mumbai" in haystack:
+        return "Mumbai"
+    if "bengaluru" in haystack or "bangalore" in haystack:
+        return "Bengaluru"
+    if "gurugram" in haystack or "gurgaon" in haystack:
+        return "Gurugram"
+    if "noida" in haystack:
+        return "Noida"
+    if "faridabad" in haystack:
+        return "Faridabad"
+    if "ghaziabad" in haystack:
+        return "Ghaziabad"
+    if "delhi" in haystack:
+        return "Delhi"
+    return "Delhi NCR"
+
+def rate_lookup_map(city=None):
     try:
-        return {row["item"]: float(row["rate"]) for row in get_db().execute("SELECT item, rate FROM rate_items").fetchall()}
+        db = get_db()
+        city_norm = (city or "Delhi NCR").strip().lower()
+        rates = {}
+        rows = db.execute("SELECT item, rate, city FROM rate_items ORDER BY updated_at DESC").fetchall()
+        for row in rows:
+            row_city = (row["city"] or "Delhi NCR").strip().lower()
+            if row_city == city_norm:
+                rates[row["item"]] = float(row["rate"])
+        for row in rows:
+            rates.setdefault(row["item"], float(row["rate"]))
+        for row in db.execute("SELECT material, rate, city FROM material_rates ORDER BY updated_at DESC").fetchall():
+            row_city = (row["city"] or "Delhi NCR").strip().lower()
+            if row_city == city_norm:
+                rates[row["material"]] = float(row["rate"])
+            else:
+                rates.setdefault(row["material"], float(row["rate"]))
+        for row in db.execute("SELECT description, rate, city FROM cpwd_items WHERE rate IS NOT NULL ORDER BY updated_at DESC").fetchall():
+            row_city = (row["city"] or "Delhi NCR").strip().lower()
+            if row_city == city_norm:
+                rates[row["description"]] = float(row["rate"])
+            else:
+                rates.setdefault(row["description"], float(row["rate"]))
+        return rates
     except Exception:
         rates = {}
         for item in base_rate_rows():
             rates[item["item"]] = float(item["rate"])
         return rates
+
+def pricing_data_signal():
+    signal = {"material_rate_count": 0, "cpwd_item_count": 0, "historical_boq_count": 0}
+    try:
+        db = get_db()
+        signal["material_rate_count"] = int(db.execute("SELECT COUNT(*) AS c FROM material_rates").fetchone()["c"])
+        signal["cpwd_item_count"] = int(db.execute("SELECT COUNT(*) AS c FROM cpwd_items").fetchone()["c"])
+        signal["historical_boq_count"] = int(db.execute("SELECT COUNT(*) AS c FROM historical_boqs").fetchone()["c"])
+    except Exception:
+        pass
+    return signal
+
+def detect_location_factor(analysis):
+    haystack = " ".join([
+        str(analysis.get("address") or ""),
+        str(analysis.get("location") or ""),
+        str(analysis.get("city") or ""),
+        str(analysis.get("notes") or ""),
+        json.dumps(analysis.get("drawing_review") or {}, default=str),
+    ]).lower()
+    for keywords, factor, label in LOCATION_COST_FACTORS:
+        if any(keyword in haystack for keyword in keywords):
+            return factor, label
+    return 1.0, "Delhi NCR seed market"
+
+def detect_spec_level(analysis):
+    explicit = str(analysis.get("spec_level") or "").strip().lower()
+    haystack = " ".join([
+        explicit,
+        str(analysis.get("building_type") or ""),
+        str(analysis.get("notes") or ""),
+        json.dumps(analysis.get("drawing_review") or {}, default=str),
+        json.dumps(analysis.get("detected_features") or [], default=str),
+    ]).lower()
+    amenities = analysis.get("luxury_amenities") if isinstance(analysis.get("luxury_amenities"), dict) else {}
+    amenity_hits = sum(1 for value in amenities.values() if value)
+    if explicit in ["luxury", "premium", "economy"]:
+        level = explicit
+    elif any(word in haystack for word in ["luxury", "premium villa", "high end", "high-end", "malibu", "golf"]):
+        level = "luxury"
+    elif amenity_hits >= 3 or any(word in haystack for word in ["premium", "marble", "home automation", "vrf", "clubhouse"]):
+        level = "premium"
+    elif any(word in haystack for word in ["economy", "budget", "basic"]):
+        level = "economy"
+    else:
+        level = "standard"
+    return level, SPEC_FACTORS["finish_level"].get(level, 1.0)
+
+def historical_cost_factor(project_type, current_cost_per_sqft):
+    if not current_cost_per_sqft:
+        return 1.0, 0, 0
+    values = []
+    try:
+        rows = get_db().execute("SELECT parsed_data FROM historical_boqs ORDER BY created_at DESC LIMIT 200").fetchall()
+        for row in rows:
+            try:
+                data = json.loads(row["parsed_data"] or "{}")
+            except Exception:
+                continue
+            if normalize_project_type(data.get("project_type")) != project_type:
+                continue
+            cpsf = safe_float(data.get("cost_per_sqft") or data.get("cost_psf") or data.get("rate_per_sqft"), 0, 0)
+            if cpsf > 500:
+                values.append(cpsf)
+    except Exception:
+        return 1.0, 0, 0
+    if len(values) < 3:
+        return 1.0, len(values), 0
+    avg = sum(values) / len(values)
+    factor = max(0.75, min(1.35, avg / current_cost_per_sqft))
+    return factor, len(values), int(avg)
+
+def apply_pricing_factor(divisions, factor, source_note, division_keys=None):
+    if abs(factor - 1) < 0.005:
+        return
+    allowed = set(division_keys or [])
+    for key, div in divisions.items():
+        if key == "16_overheads" or (allowed and key not in allowed):
+            continue
+        for line in div.get("items", []):
+            line["rate"] = round(float(line.get("rate", 0)) * factor, 2)
+            line["amount"] = int(float(line.get("qty", 0)) * line["rate"])
+            line["source"] = f"{line.get('source') or 'Seed rate'}; {source_note}"
 
 @app.route("/", methods=["GET"])
 def home():
@@ -1790,23 +2155,72 @@ def analyze_project(project_id):
     if not row:
         return jsonify({"success": False, "message": "Project not found."}), 404
 
-    if not row["file_data"]:
+    if not row["file_data"] and not (("file_path" in row.keys()) and row["file_path"]):
         return jsonify({"success": False, "message": "Upload a drawing before generating an estimate."}), 400
 
+    body = request.get_json(silent=True) or {}
+    draft_mode = bool(body.get("draft"))
     parcel = parse_json_field(row, "parcel_data", {})
-    analysis = enrich_analysis_scope(analyze_drawing_with_ai(row), row)
+    raw_analysis = analyze_drawing_with_ai(row)
+    if raw_analysis.get("ai_error"):
+        return jsonify({
+            "success": False,
+            "message": raw_analysis.get("ai_error_message") or "AI analysis failed. Please try again.",
+            "retryable": True,
+        }), 502
+    analysis = enrich_analysis_scope(raw_analysis, row)
     sheets = default_sheet_intelligence(analysis)
     regions = default_regions(analysis)
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    if draft_mode:
+        return jsonify({
+            "success": True,
+            "needs_confirmation": True,
+            "analysis": analysis,
+            "drawing_sheets": sheets,
+            "drawing_regions": regions,
+            "takeoffs": takeoffs,
+            "message": "AI extraction is ready. Confirm BUA and key fields before running the estimate.",
+        })
     estimate = calculate_estimate(analysis, takeoffs)
+    estimate = attach_ai_validation(analysis, estimate)
 
     db.execute(
         "UPDATE projects SET analysis = ?, estimate = ?, drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
         (json.dumps(analysis), json.dumps(estimate), json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
     )
     save_detected_features(db, project_id, g.current_user["id"], analysis.get("detected_features"))
+    record_usage(g.current_user["id"])
     db.commit()
 
+    return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
+
+@app.route("/api/projects/<project_id>/confirm-analysis", methods=["POST"])
+@require_auth
+def confirm_project_analysis(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    body = request.get_json() or {}
+    incoming = body.get("analysis") if isinstance(body.get("analysis"), dict) else body
+    incoming["project_type"] = incoming.get("project_type") or row["project_type"]
+    analysis = enrich_analysis_scope(normalize_analysis(incoming, row["name"]), row)
+    analysis["ai_source"] = incoming.get("ai_source") or analysis.get("ai_source") or "claude_confirmed"
+    analysis["user_confirmed_at"] = now()
+    parcel = parse_json_field(row, "parcel_data", {})
+    sheets = body.get("drawing_sheets") if isinstance(body.get("drawing_sheets"), list) else default_sheet_intelligence(analysis)
+    regions = body.get("drawing_regions") if isinstance(body.get("drawing_regions"), list) else default_regions(analysis)
+    takeoffs = calculate_takeoffs(analysis, regions, parcel)
+    estimate = calculate_estimate(analysis, takeoffs)
+    estimate = attach_ai_validation(analysis, estimate)
+    db.execute(
+        "UPDATE projects SET analysis = ?, estimate = ?, drawing_sheets = ?, drawing_regions = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
+        (json.dumps(analysis), json.dumps(estimate), json.dumps(sheets), json.dumps(regions), json.dumps(takeoffs), now(), project_id)
+    )
+    save_detected_features(db, project_id, g.current_user["id"], analysis.get("detected_features"))
+    record_usage(g.current_user["id"])
+    db.commit()
     return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "drawing_sheets": sheets, "drawing_regions": regions, "takeoffs": takeoffs})
 
 @app.route("/api/projects/<project_id>/analysis", methods=["PUT"])
@@ -1826,12 +2240,14 @@ def update_project_analysis(project_id):
     regions = parse_json_field(row, "drawing_regions", default_regions(analysis))
     takeoffs = calculate_takeoffs(analysis, regions, parcel)
     estimate = calculate_estimate(analysis, takeoffs)
+    estimate = attach_ai_validation(analysis, estimate)
 
     db.execute(
         "UPDATE projects SET analysis = ?, estimate = ?, takeoffs = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
         (json.dumps(analysis), json.dumps(estimate), json.dumps(takeoffs), now(), project_id)
     )
     save_detected_features(db, project_id, g.current_user["id"], analysis.get("detected_features"))
+    record_usage(g.current_user["id"])
     db.commit()
 
     return jsonify({"success": True, "analysis": analysis, "estimate": estimate, "takeoffs": takeoffs})
@@ -1945,6 +2361,162 @@ def project_takeoffs(project_id):
     db.commit()
     return jsonify({"success": True, "takeoffs": takeoffs, "estimate": estimate})
 
+@app.route("/api/projects/<project_id>/drawings", methods=["GET", "POST"])
+@require_auth
+def project_drawing_files(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if request.method == "GET":
+        files = db.execute(
+            "SELECT id, file_name, file_mime, file_size, file_kind, created_at FROM drawing_files WHERE project_id = ? ORDER BY created_at DESC",
+            (project_id,)
+        ).fetchall()
+        return jsonify({"success": True, "files": [dict(f) for f in files]})
+
+    uploaded = request.files.getlist("files") or ([request.files.get("file")] if request.files.get("file") else [])
+    saved = []
+    for file in uploaded:
+        data, mime, error = validate_upload(file)
+        if error:
+            continue
+        file_id = uid()
+        file_path = write_project_file(project_id, f"{file_id}_{file.filename}", data)
+        parsed_text = extract_file_text(file_path, mime)
+        db.execute(
+            """
+            INSERT INTO drawing_files
+            (id, project_id, user_id, file_name, file_mime, file_size, file_data, file_path, file_kind, parsed_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (file_id, project_id, g.current_user["id"], file.filename, mime, len(data), db_blob(data), file_path, "drawing", parsed_text, now())
+        )
+        saved.append({"id": file_id, "file_name": file.filename, "file_mime": mime, "file_size": len(data)})
+    db.commit()
+    return jsonify({"success": True, "files": saved, "message": f"Uploaded {len(saved)} drawing file(s)."})
+
+def parse_boq_csv_text(text):
+    rows = []
+    reader = csv.DictReader(io.StringIO(text))
+    for raw in reader:
+        normalized = {str(k or "").strip().lower(): v for k, v in raw.items()}
+        desc = normalized.get("description") or normalized.get("item") or normalized.get("particulars") or normalized.get("name")
+        if not desc:
+            continue
+        rate = safe_float(normalized.get("rate") or normalized.get("unit rate") or normalized.get("unit_rate"), 0, 0)
+        qty = safe_float(normalized.get("qty") or normalized.get("quantity"), 0, 0)
+        unit = normalized.get("unit") or normalized.get("uom") or "unit"
+        amount = safe_float(normalized.get("amount") or normalized.get("total"), qty * rate, 0)
+        rows.append({"description": desc, "qty": qty, "unit": unit, "rate": rate, "amount": amount})
+    return rows
+
+@app.route("/api/projects/<project_id>/historical-boq", methods=["POST"])
+@require_auth
+def upload_historical_boq(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"success": False, "message": "Upload a CSV BOQ file."}), 400
+    data = file.read()
+    text = data.decode("utf-8", errors="ignore")
+    parsed_rows = parse_boq_csv_text(text)
+    analysis = parse_json_field(row, "analysis", {}) or {}
+    estimate = parse_json_field(row, "estimate", {}) or {}
+    parsed = {
+        "project_type": normalize_project_type(analysis.get("project_type") or row["project_type"]),
+        "city": city_from_analysis(analysis),
+        "rows": parsed_rows[:1000],
+        "cost_per_sqft": estimate.get("cost_per_sqft") or 0,
+    }
+    boq_id = uid()
+    db.execute(
+        "INSERT INTO historical_boqs (id, project_id, user_id, file_name, file_mime, file_size, file_data, parsed_data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (boq_id, project_id, g.current_user["id"], file.filename, file.mimetype or "text/csv", len(data), db_blob(data), json.dumps(parsed), now())
+    )
+    for item_row in parsed_rows:
+        if item_row["rate"] <= 0:
+            continue
+        material = str(item_row["description"])[:120]
+        db.execute(
+            "INSERT INTO material_rates (id, material, unit, rate, city, supplier, source, effective_date, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (uid(), material, item_row["unit"], item_row["rate"], parsed["city"], "Historical BOQ", f"Uploaded BOQ: {file.filename}", now()[:10], now())
+        )
+    db.commit()
+    return jsonify({"success": True, "boq_id": boq_id, "matched_rows": len(parsed_rows), "message": "Historical BOQ stored for future calibration."})
+
+@app.route("/api/projects/<project_id>/feedback", methods=["POST"])
+@require_auth
+def project_feedback(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    body = request.get_json() or {}
+    rating = (body.get("rating") or "").strip().lower()
+    if rating not in ["up", "down", "neutral"]:
+        return jsonify({"success": False, "message": "Rating must be up, down or neutral."}), 400
+    db.execute(
+        "INSERT INTO estimate_feedback (id, project_id, user_id, rating, comment, actual_cost, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (uid(), project_id, g.current_user["id"], rating, (body.get("comment") or "")[:1000], safe_float(body.get("actual_cost"), 0, 0), now())
+    )
+    db.commit()
+    return jsonify({"success": True, "message": "Feedback saved. This helps calibrate future estimates."})
+
+@app.route("/api/projects/<project_id>/rate-corrections", methods=["POST"])
+@require_auth
+def project_rate_correction(project_id):
+    db = get_db()
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    body = request.get_json() or {}
+    analysis = parse_json_field(row, "analysis", {}) or {}
+    db.execute(
+        """
+        INSERT INTO rate_corrections
+        (id, project_id, user_id, division, item, old_rate, corrected_rate, city, property_type, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            uid(), project_id, g.current_user["id"], body.get("division"), body.get("item"),
+            safe_float(body.get("old_rate"), 0, 0), safe_float(body.get("corrected_rate"), 0, 0),
+            city_from_analysis(analysis), normalize_project_type(analysis.get("project_type") or row["project_type"]),
+            (body.get("comment") or "")[:1000], now()
+        )
+    )
+    db.commit()
+    return jsonify({"success": True, "message": "Rate correction saved."})
+
+@app.route("/api/contractor-quotes", methods=["GET", "POST"])
+def contractor_quotes():
+    db = get_db()
+    if request.method == "GET":
+        city = (request.args.get("city") or "").strip()
+        params = ()
+        sql = "SELECT material, unit, city, COUNT(*) AS quote_count, MIN(rate) AS min_rate, AVG(rate) AS avg_rate, MAX(rate) AS max_rate FROM contractor_quotes"
+        if city:
+            sql += " WHERE LOWER(city) = LOWER(?)"
+            params = (city,)
+        sql += " GROUP BY material, unit, city ORDER BY material"
+        rows = db.execute(sql, params).fetchall()
+        return jsonify({"success": True, "quotes": [dict(r) for r in rows]})
+    body = request.get_json() or {}
+    material = (body.get("material") or "").strip()
+    rate = safe_float(body.get("rate"), 0, 0)
+    unit = (body.get("unit") or "unit").strip()
+    if not material or rate <= 0:
+        return jsonify({"success": False, "message": "Material and rate are required."}), 400
+    db.execute(
+        "INSERT INTO contractor_quotes (id, material, unit, rate, city, contractor_name, source, quote_date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (uid(), material, unit, rate, (body.get("city") or "Delhi NCR").strip(), (body.get("contractor_name") or "")[:120], (body.get("source") or "Contractor quote")[:120], body.get("quote_date") or now()[:10], now())
+    )
+    db.commit()
+    return jsonify({"success": True, "message": "Contractor quote saved."}), 201
+
 def default_unit_mix(project_type, total_units):
     project_type = normalize_project_type(project_type)
     if project_type == "villa":
@@ -1978,6 +2550,7 @@ def fallback_analysis(project_name, reason, project_type="residential_tower"):
         "total_carpet_area_sqft": int(bua * profile["default_carpet_factor"]),
         "plot_area_sqft": int(bua * profile["default_plot_factor"]),
         "structure_type": "RCC Frame",
+        "spec_level": "standard",
         "basement_levels": 0 if project_type in ["villa", "banquet_hall", "industrial_warehouse"] else 1,
         "parking_spaces": max(total_units, 4 if project_type == "villa" else 10),
         "lift_count": profile["default_lift_count"],
@@ -2231,7 +2804,12 @@ def normalize_analysis(data, project_name):
     project_type = normalize_project_type(data.get("project_type"))
     profile = property_profile(project_type)
     total_units = positive_int(data.get("total_units"), profile["default_units"])
-    bua = positive_int(data.get("total_built_up_area_sqft"), profile["default_bua"])
+    plot_area_raw = safe_float(data.get("plot_area_sqft"), 0, 0)
+    raw_bua = data.get("total_built_up_area_sqft")
+    bua_default = profile["default_bua"]
+    if project_type == "villa" and not safe_float(raw_bua, 0, 0) and plot_area_raw:
+        bua_default = int(max(3500, min(plot_area_raw * 0.85, 22000)))
+    bua = positive_int(raw_bua, bua_default)
     carpet = positive_int(data.get("total_carpet_area_sqft"), int(bua * profile["default_carpet_factor"]))
 
     units = data.get("unit_types")
@@ -2285,6 +2863,15 @@ def normalize_analysis(data, project_name):
             "included": bool(feature.get("included", True)),
         })
     hvac_units = data.get("hvac_units") if isinstance(data.get("hvac_units"), list) else []
+    field_confidence_raw = data.get("field_confidence") if isinstance(data.get("field_confidence"), dict) else {}
+    field_evidence_raw = data.get("field_evidence") if isinstance(data.get("field_evidence"), dict) else {}
+    tracked_fields = ["total_built_up_area_sqft", "plot_area_sqft", "total_floors", "floor_wise_areas", "detected_features", "discipline_takeoff"]
+    field_confidence = {}
+    field_evidence = {}
+    for key in tracked_fields:
+        conf = str(field_confidence_raw.get(key) or "medium").lower()
+        field_confidence[key] = conf if conf in ["high", "medium", "low"] else "medium"
+        field_evidence[key] = str(field_evidence_raw.get(key) or "").strip()[:300]
     result = {
         "building_type": str(data.get("building_type") or profile["label"]),
         "project_type": project_type,
@@ -2298,6 +2885,7 @@ def normalize_analysis(data, project_name):
         "total_carpet_area_sqft": carpet,
         "plot_area_sqft": positive_int(data.get("plot_area_sqft"), int(bua * profile["default_plot_factor"])),
         "structure_type": str(data.get("structure_type") or "RCC Frame"),
+        "spec_level": str(data.get("spec_level") or "").lower() if str(data.get("spec_level") or "").lower() in SPEC_FACTORS["finish_level"] else "",
         "basement_levels": positive_int(data.get("basement_levels"), 0),
         "parking_spaces": positive_int(data.get("parking_spaces"), total_units),
         "lift_count": positive_int(data.get("lift_count"), profile["default_lift_count"]),
@@ -2306,6 +2894,8 @@ def normalize_analysis(data, project_name):
         "floor_wise_areas": floor_wise_areas,
         "luxury_amenities": luxury_amenities,
         "detected_features": detected_features,
+        "field_confidence": field_confidence,
+        "field_evidence": field_evidence,
         "confidence": str(data.get("confidence") or "medium").lower(),
         "ai_source": data.get("ai_source") or "claude",
         "ai_model": data.get("ai_model") or "",
@@ -2328,16 +2918,20 @@ def normalize_analysis(data, project_name):
 def analyze_drawing_with_ai(project):
     file_data = project_file_bytes(project)
     if not file_data:
-        return fallback_analysis(project["name"], "Drawing file was not available to the AI analyzer.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+        analysis = fallback_analysis(project["name"], "Drawing file was not available to the AI analyzer.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+        analysis["ai_error"] = True
+        analysis["ai_error_message"] = "Drawing file was not available to the AI analyzer."
+        return analysis
 
     mime = project["file_mime"] or "application/pdf"
     b64 = base64.b64encode(file_data).decode("utf-8")
-    provider = AI_PROVIDER or ("anthropic" if os.environ.get("ANTHROPIC_API_KEY") else "gemini" if os.environ.get("GEMINI_API_KEY") else "")
-    if provider == "gemini":
-        return analyze_with_gemini(project, mime, b64)
+    provider = AI_PROVIDER or "anthropic"
     if provider == "anthropic":
         return analyze_with_anthropic(project, mime, b64)
-    return fallback_analysis(project["name"], "No AI API key is configured. Set GEMINI_API_KEY or ANTHROPIC_API_KEY in Render.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+    analysis = fallback_analysis(project["name"], "Claude extraction is required for production. Set ANTHROPIC_API_KEY in Render and keep AI_PROVIDER=anthropic.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+    analysis["ai_error"] = True
+    analysis["ai_error_message"] = "Claude extraction is required for production. Set ANTHROPIC_API_KEY in Render and keep AI_PROVIDER=anthropic."
+    return analysis
 
 def gemini_model_candidates():
     models = []
@@ -2350,7 +2944,7 @@ def gemini_model_candidates():
         if model not in seen:
             unique.append(model)
             seen.add(model)
-    return unique or ["gemini-3.5-flash"]
+    return unique or ["gemini-2.5-pro"]
 
 def analyze_with_gemini(project, mime, b64):
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
@@ -2406,7 +3000,10 @@ def analyze_with_gemini(project, mime, b64):
 def analyze_with_anthropic(project, mime, b64):
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
     if not api_key:
-        return fallback_analysis(project["name"], "ANTHROPIC_API_KEY is not configured, so the app used a demo fallback.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+        analysis = fallback_analysis(project["name"], "ANTHROPIC_API_KEY is not configured.", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+        analysis["ai_error"] = True
+        analysis["ai_error_message"] = "ANTHROPIC_API_KEY is not configured in Render."
+        return analysis
 
     if mime == "application/pdf":
         drawing_block = {"type": "document", "source": {"type": "base64", "media_type": mime, "data": b64}}
@@ -2425,28 +3022,276 @@ def analyze_with_anthropic(project, mime, b64):
             ],
         }],
     }
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "content-type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
-    )
+    errors = []
+    for attempt in range(3):
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "content-type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
+            data = parse_ai_json(text)
+            data["ai_source"] = "claude"
+            data["ai_model"] = ANTHROPIC_MODEL
+            data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
+            return normalize_analysis(data, project["name"])
+        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
+            errors.append(str(exc))
+            if attempt < 2:
+                time.sleep(2)
+    analysis = fallback_analysis(project["name"], f"Claude analysis failed after 3 attempts: {'; '.join(errors[-2:])}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+    analysis["ai_error"] = True
+    analysis["ai_error_message"] = "Claude analysis failed after 3 attempts. Please try again."
+    analysis["ai_error_detail"] = "; ".join(errors[-3:])
+    return analysis
 
-    try:
-        with urllib.request.urlopen(req, timeout=90) as resp:
-            raw = json.loads(resp.read().decode("utf-8"))
-        text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
-        data = parse_ai_json(text)
-        data["ai_source"] = "claude"
-        data["ai_model"] = ANTHROPIC_MODEL
-        data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
-        return normalize_analysis(data, project["name"])
-    except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
-        return fallback_analysis(project["name"], f"Claude analysis failed: {exc}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+def validate_with_anthropic(analysis, estimate):
+    if not ENABLE_AI_VALIDATION:
+        return {"status": "disabled", "summary": "AI validation pass is disabled."}
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    if not api_key:
+        return {"status": "skipped", "summary": "ANTHROPIC_API_KEY is not configured."}
+    slim_estimate = {
+        "built_up_area": estimate.get("built_up_area"),
+        "cost_per_sqft": estimate.get("cost_per_sqft"),
+        "subtotal": estimate.get("subtotal"),
+        "gst": estimate.get("gst_breakup"),
+        "total_with_gst": estimate.get("total_with_gst"),
+        "divisions": {
+            key: {
+                "name": div.get("name"),
+                "amount": div.get("amount"),
+                "items": (div.get("items") or [])[:8],
+            }
+            for key, div in (estimate.get("divisions") or {}).items()
+        },
+    }
+    payload = {
+        "model": ANTHROPIC_MODEL,
+        "max_tokens": 1600,
+        "temperature": 0,
+        "messages": [{
+            "role": "user",
+            "content": [{
+                "type": "text",
+                "text": NIRMAN_VALIDATION_PROMPT + "\n\nEXTRACTION JSON:\n" + json.dumps(analysis, default=str)[:18000] + "\n\nENGINE ESTIMATE JSON:\n" + json.dumps(slim_estimate, default=str)[:18000],
+            }],
+        }],
+    }
+    errors = []
+    for attempt in range(2):
+        req = urllib.request.Request(
+            "https://api.anthropic.com/v1/messages",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "content-type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=45) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
+            data = parse_ai_json(text)
+            data["model"] = ANTHROPIC_MODEL
+            return data
+        except Exception as exc:
+            errors.append(str(exc))
+            if attempt == 0:
+                time.sleep(1)
+    return {"status": "validation_failed", "summary": "Pass 2 validation could not complete.", "errors": errors}
+
+def attach_ai_validation(analysis, estimate):
+    validation = validate_with_anthropic(analysis, estimate)
+    estimate["ai_validation"] = validation
+    if validation.get("status") == "needs_review":
+        accuracy = estimate.get("accuracy") or {}
+        flags = validation.get("flags") if isinstance(validation.get("flags"), list) else []
+        if flags:
+            accuracy.setdefault("drivers", []).append({
+                "label": "AI validation pass",
+                "status": "needs review",
+                "impact": "high" if any(f.get("severity") == "high" for f in flags if isinstance(f, dict)) else "medium",
+                "detail": validation.get("summary") or "Claude validation found estimate review items.",
+            })
+            accuracy.setdefault("improvement_actions", []).extend([
+                f.get("recommendation") for f in flags if isinstance(f, dict) and f.get("recommendation")
+            ][:3])
+            estimate["accuracy"] = accuracy
+    return estimate
+
+def estimate_accuracy_profile(analysis, takeoffs=None, estimate=None, project_type=None):
+    project_type = normalize_project_type(project_type or analysis.get("project_type"))
+    takeoffs = takeoffs or {}
+    estimate = estimate or {}
+    confidence = str(analysis.get("confidence") or "medium").lower()
+    score = {"high": 78, "medium": 62, "low": 45}.get(confidence, 58)
+    drivers = []
+    missing = []
+    actions = []
+
+    def add_driver(label, status, impact, detail, delta=0, missing_input=None, action=None):
+        nonlocal score
+        score += delta
+        drivers.append({
+            "label": label,
+            "status": status,
+            "impact": impact,
+            "detail": detail,
+        })
+        if missing_input and missing_input not in missing:
+            missing.append(missing_input)
+        if action and action not in actions:
+            actions.append(action)
+
+    bua = safe_float(analysis.get("total_built_up_area_sqft"), 0, 0)
+    plot_area = safe_float(analysis.get("plot_area_sqft"), 0, 0)
+    parcel_area = safe_float((analysis.get("parcel_data") or {}).get("site_area_sqft") if isinstance(analysis.get("parcel_data"), dict) else 0, 0, 0)
+    floor_wise = analysis.get("floor_wise_areas") if isinstance(analysis.get("floor_wise_areas"), dict) else {}
+    floor_wise_total = sum(safe_float(v, 0, 0) for v in floor_wise.values())
+    review = analysis.get("drawing_review") if isinstance(analysis.get("drawing_review"), dict) else {}
+    field_confidence = analysis.get("field_confidence") if isinstance(analysis.get("field_confidence"), dict) else {}
+    field_evidence = analysis.get("field_evidence") if isinstance(analysis.get("field_evidence"), dict) else {}
+    missing_info = review.get("missing_information") if isinstance(review.get("missing_information"), list) else []
+    regions = analysis.get("drawing_regions") if isinstance(analysis.get("drawing_regions"), list) else []
+    sheets = analysis.get("drawing_sheets") if isinstance(analysis.get("drawing_sheets"), list) else []
+    quantities = takeoffs.get("quantities") if isinstance(takeoffs.get("quantities"), dict) else {}
+    features = [f for f in analysis.get("detected_features", []) if isinstance(f, dict) and f.get("included", True)] if isinstance(analysis.get("detected_features"), list) else []
+    sourced_features = [f for f in features if f.get("source") or f.get("evidence") or f.get("page")]
+    pricing_context = estimate.get("pricing_context") if isinstance(estimate.get("pricing_context"), dict) else {}
+    data_signal = pricing_context.get("data_signal") if isinstance(pricing_context.get("data_signal"), dict) else {}
+    verified_rate_count = safe_int(data_signal.get("material_rate_count"), 0, 0) + safe_int(data_signal.get("cpwd_item_count"), 0, 0)
+    historical_match_count = safe_int(pricing_context.get("historical_match_count"), 0, 0)
+
+    if bua:
+        add_driver("Built-up area", "good", "high", f"Estimate is based on {int(bua):,} sqft BUA.", 6)
+    else:
+        add_driver("Built-up area", "missing", "high", "BUA is missing, so the estimate falls back to a default area.", -16, "Total built-up area", "Enter total BUA or floor-wise areas before trusting the estimate.")
+
+    if project_type == "villa":
+        if floor_wise_total:
+            add_driver("Villa floor-wise area", "good", "high", "Basement, floor and terrace areas are separated for villa costing.", 8)
+        else:
+            add_driver("Villa floor-wise area", "missing", "high", "Villa estimate is using a single BUA instead of basement/ground/first/terrace breakup.", -12, "Villa floor-wise area breakup", "Add basement, ground, upper floor, terrace and pool/landscape areas.")
+
+    if plot_area or parcel_area:
+        add_driver("Plot / parcel area", "good", "medium", "Site area is available for FAR, external development and report checks.", 4)
+    else:
+        add_driver("Plot / parcel area", "warning", "medium", "No plot or parcel area was entered; external works and FAR checks remain approximate.", -5, "Plot or parcel area", "Fill land details or parcel area from the plot document.")
+
+    low_fields = [key for key, value in field_confidence.items() if str(value).lower() == "low"]
+    evidence_count = sum(1 for value in field_evidence.values() if str(value).strip())
+    if low_fields:
+        add_driver("Field-level confidence", "warning", "high", "Low-confidence fields: " + ", ".join(low_fields[:4]) + ".", -min(12, len(low_fields) * 3), "Low-confidence extracted fields", "Review every low-confidence field in AI Approval before generating the final BOQ.")
+    elif evidence_count:
+        add_driver("Extraction evidence", "good", "medium", f"{evidence_count} key field(s) include source evidence from the drawing.", 4)
+
+    if sheets:
+        add_driver("Drawing sheets", "good", "medium", f"{len(sheets)} sheet(s) are classified for page-level review.", 5)
+    else:
+        add_driver("Drawing sheets", "warning", "medium", "No sheet classification exists yet.", -8, "Drawing sheet classification", "Review page types and scales in the Drawing Pages step.")
+
+    verified_regions = [r for r in regions if safe_float(r.get("quantity_sqft"), 0, 0) or safe_float(r.get("length_ft"), 0, 0)]
+    takeoff_values = [safe_float(quantities.get(k), 0, 0) for k in ("wall_area_sqft", "slab_area_sqft", "facade_area_sqft", "window_glazing_area_sqft", "flooring_area_sqft")]
+    if verified_regions or any(takeoff_values):
+        add_driver("Takeoff quantities", "good", "high", "Quantity data exists for walls/slabs/facade/glazing/finishes.", 9)
+    else:
+        add_driver("Takeoff quantities", "warning", "high", "Most quantities are still allowance-based, not measured from verified regions.", -14, "Verified takeoff quantities", "Measure or edit takeoff quantities before issuing a BOQ.")
+
+    if features and sourced_features:
+        add_driver("Detected spaces and amenities", "good", "medium", f"{len(sourced_features)} special feature(s) have source evidence.", 5)
+    elif features:
+        add_driver("Detected spaces and amenities", "warning", "medium", "Some special spaces exist but need source/evidence confirmation.", -3, "Feature evidence", "Keep only features visibly present in the drawing and remove uncertain ones.")
+    else:
+        add_driver("Detected spaces and amenities", "warning", "medium", "No special spaces or amenities were detected.", -4, "Amenity / special space schedule", "Add visible amenities such as labs, kitchen, pool, banquet, gym, plant rooms or other project-specific spaces.")
+
+    if missing_info:
+        deduction = min(16, len(missing_info) * 4)
+        add_driver("Missing drawing information", "warning", "high", f"{len(missing_info)} missing item(s) were flagged by AI review.", -deduction, "Missing drawing information", "Upload structural, MEP, finish schedule and elevation sheets where available.")
+    else:
+        add_driver("Missing drawing information", "good", "medium", "AI review did not flag major missing items.", 3)
+
+    if analysis.get("estimate_scope") == "discipline_only":
+        add_driver("Estimate scope", "warning", "high", "This is a package estimate only, not a full building BOQ.", -16, "Full architectural/structural set", "Upload full project drawings when you need total construction cost.")
+
+    rates_source = str(estimate.get("rates_source") or "").lower()
+    if verified_rate_count or historical_match_count >= 3:
+        add_driver("Pricing calibration", "good", "high", f"Using {verified_rate_count} verified rate row(s) and {historical_match_count} historical BOQ match(es).", 10)
+    elif "seed" in rates_source or "allowance" in rates_source or not rates_source:
+        add_driver("Rate source", "warning", "high", "Rates are still seed/benchmark rates, not verified supplier quotes.", -10, "Verified material and labour rates", "Upload supplier quotes, DSR/CPWD schedule items or your historical BOQ rates.")
+    else:
+        add_driver("Rate source", "good", "high", "Estimate is using a named rate source.", 6)
+
+    if pricing_context:
+        location_label = pricing_context.get("location_label") or "Delhi NCR seed market"
+        spec_level = pricing_context.get("spec_level") or "standard"
+        add_driver("Market and spec calibration", "good", "medium", f"Applied {location_label} and {spec_level} specification factors.", 4)
+        if historical_match_count and historical_match_count < 3:
+            add_driver("Historical BOQ calibration", "warning", "medium", f"Only {historical_match_count} matching historical BOQ record(s) found; need at least 3 for calibration.", -2, "More historical BOQs", "Upload at least 3 completed BOQs for each project type to calibrate cost-per-sqft.")
+
+    if analysis.get("ai_source") == "claude":
+        add_driver("AI model", "good", "medium", f"Drawing extraction used Claude ({analysis.get('ai_model') or 'configured model'}).", 3)
+    elif analysis.get("ai_source"):
+        add_driver("AI model", "warning", "medium", f"Drawing extraction used {analysis.get('ai_source')}; review critical values manually.", -2)
+    else:
+        add_driver("AI model", "warning", "medium", "Estimate may be generated from fallback/demo extraction.", -8, "Live AI extraction", "Configure the production AI key and rerun analysis.")
+
+    if not verified_rate_count and historical_match_count < 3:
+        score = min(score, 86)
+    if missing_info and not verified_rate_count:
+        score = min(score, 78)
+    if analysis.get("estimate_scope") == "discipline_only":
+        score = min(score, 76)
+    score = max(25, min(96, int(round(score))))
+    if score >= 88 and verified_rate_count and historical_match_count >= 3:
+        grade = "very_high"
+        range_percent = 8
+    elif score >= 78:
+        grade = "high"
+        range_percent = 12
+    elif score >= 60:
+        grade = "medium"
+        range_percent = 22
+    else:
+        grade = "low"
+        range_percent = 35
+    if analysis.get("estimate_scope") == "discipline_only":
+        range_percent = max(range_percent, 25)
+    total = safe_float(estimate.get("total_with_gst"), 0, 0)
+    range_low = int(total * (1 - range_percent / 100)) if total else 0
+    range_high = int(total * (1 + range_percent / 100)) if total else 0
+    return {
+        "score": score,
+        "grade": grade,
+        "range_percent": range_percent,
+        "range_low": range_low,
+        "range_high": range_high,
+        "drivers": drivers,
+        "missing_inputs": missing,
+        "improvement_actions": actions[:8],
+        "rate_confidence": "verified_or_calibrated_rates" if verified_rate_count or historical_match_count >= 3 else "seed_rates" if "seed" in rates_source or "allowance" in rates_source or not rates_source else "verified_or_user_rates",
+        "basis": {
+            "confidence": confidence,
+            "project_type": project_type,
+            "built_up_area_sqft": bua,
+            "plot_area_sqft": plot_area or parcel_area,
+            "sheet_count": len(sheets),
+            "region_count": len(regions),
+            "detected_feature_count": len(features),
+            "verified_rate_count": verified_rate_count,
+            "historical_match_count": historical_match_count,
+        },
+    }
 
 def calculate_discipline_estimate(analysis, takeoffs=None):
     discipline = analysis.get("drawing_discipline") or "hvac"
@@ -2473,12 +3318,19 @@ def calculate_discipline_estimate(analysis, takeoffs=None):
         hiwall_qty = sum(safe_int(e.get("qty"), 1, 1) for e in equipment if "wall" in str(e.get("type", "")).lower())
         indoor_qty = max(cassette_qty + ductable_qty + hiwall_qty, len(equipment) or 1)
         total_tr = total_tr or max(indoor_qty * 1.65, 1.65)
+        outdoor_sets = safe_int(hvac.get("outdoor_unit_sets"), 0, 0)
+        if not outdoor_sets:
+            outdoor_sets = sum(safe_int(e.get("qty"), 1, 1) for e in equipment if "outdoor" in str(e.get("type", "")).lower() or "odu" in str(e.get("notes", "")).lower())
+        outdoor_sets = max(outdoor_sets, math.ceil(total_tr / 15))
+        premium_hvac = normalize_project_type(analysis.get("project_type")) == "villa" or "villa" in str(analysis.get("building_type", "")).lower() or any(word in str(analysis.get("notes", "")).lower() for word in ["luxury", "premium", "malibu", "gurugram", "golf"])
+        indoor_rate = 120000 if premium_hvac else 85000
+        outdoor_rate = 780000 if premium_hvac else 650000
         divisions = {
             "13_hvac": {
                 "name": "HVAC Works",
                 "items": [
-                    line("VRF/ductable indoor units supply and installation", indoor_qty, "each", 85000),
-                    line("Outdoor units / condenser allowance", max(1, round(total_tr / 15, 2)), "set", 650000),
+                    line("VRF/ductable indoor units supply and installation", indoor_qty, "each", indoor_rate),
+                    line("Outdoor units / condenser allowance", max(1, outdoor_sets), "set", outdoor_rate),
                     line("Copper piping, insulation and refrigerant", total_tr, "TR", 18500),
                     line("Drain piping, supports and sleeves", indoor_qty, "point", 8500),
                     line("Ducting, grilles and diffusers allowance", max(total_cfm, total_tr * 350), "CFM", 68),
@@ -2511,18 +3363,22 @@ def calculate_discipline_estimate(analysis, takeoffs=None):
             item.setdefault("code", f"NIR-{discipline.upper()}-{div_key.split('_')[0]}-{index:02d}")
         div["amount"] = sum(i["amount"] for i in div["items"])
     gst = int(subtotal * 0.18)
-    return {
+    result = {
         "currency": "INR",
         "built_up_area": analysis.get("total_built_up_area_sqft", 0),
-        "cost_per_sqft": int(subtotal / max(analysis.get("total_built_up_area_sqft", 1), 1)),
+        "cost_per_sqft": None,
+        "cost_per_sqft_note": "Not applicable for discipline-only package estimates.",
         "subtotal": subtotal,
         "gst_12pct": gst,
-        "gst_breakup": {"taxable_value": subtotal, "cgst_6pct": 0, "sgst_6pct": 0, "igst_12pct": gst, "total_gst": gst},
+        "gst_label": "Applicable GST",
+        "gst_breakup": {"taxable_value": subtotal, "cgst_6pct": 0, "sgst_6pct": 0, "igst_18pct": gst, "igst_12pct": 0, "total_gst": gst},
         "total_with_gst": subtotal + gst,
         "divisions": divisions,
         "rates_source": "Discipline-specific Delhi NCR seed rates",
         "disclaimer": f"Discipline-only {DRAWING_DISCIPLINES.get(discipline, discipline)} estimate. This is not a full building BOQ.",
     }
+    result["accuracy"] = estimate_accuracy_profile(analysis, takeoffs, result, analysis.get("project_type"))
+    return result
 
 def calculate_estimate(analysis, takeoffs=None):
     if analysis.get("estimate_scope") == "discipline_only":
@@ -2548,7 +3404,8 @@ def calculate_estimate(analysis, takeoffs=None):
     lifts = analysis.get("lift_count", 3)
     parking = analysis.get("parking_spaces", 60)
     q = (takeoffs or {}).get("quantities") or {}
-    rates = rate_lookup_map()
+    rate_city = city_from_analysis(analysis)
+    rates = rate_lookup_map(rate_city)
     rcc_factor = category["rcc_factor"]
     steel_factor = category["steel_factor"]
     mep_electrical_rate = category["electrical_rate"]
@@ -2566,6 +3423,18 @@ def calculate_estimate(analysis, takeoffs=None):
     lift_qty = lifts if not is_villa else max(lifts, 0)
     wet_area_waterproofing = units * 95 if category.get("sanitary_factor") else physical_bua * 0.04
     basement_levels = safe_int(analysis.get("basement_levels"), 0, 0)
+    location_factor, location_label = detect_location_factor(analysis)
+    spec_level, spec_factor = detect_spec_level(analysis)
+    pricing_context = {
+        "location_factor": round(location_factor, 3),
+        "location_label": location_label,
+        "spec_level": spec_level,
+        "spec_factor": round(spec_factor, 3),
+        "data_signal": pricing_data_signal(),
+        "historical_factor": 1.0,
+        "historical_match_count": 0,
+        "historical_avg_cost_per_sqft": 0,
+    }
 
     def item(desc, qty, unit, rate, gst_rate=12):
         rate = rates.get(ESTIMATE_RATE_ALIASES.get(desc, desc), rate)
@@ -2706,6 +3575,10 @@ def calculate_estimate(analysis, takeoffs=None):
             "name": "AI Detected Special Spaces",
             "items": [],
         },
+        "20_statutory": {
+            "name": "Statutory, RERA and Approval Costs",
+            "items": [],
+        },
         "16_overheads": {
             "name": "Professional Fees, Contingency and Overheads",
             "items": [],
@@ -2829,6 +3702,37 @@ def calculate_estimate(analysis, takeoffs=None):
     if not divisions["19_detected_features"]["items"]:
         divisions.pop("19_detected_features", None)
 
+    apply_pricing_factor(divisions, location_factor, location_label)
+    spec_divisions = ["06_doors_windows", "07_finishes", "08_facade", "10_plumbing", "11_electrical", "13_hvac", "17_luxury_amenities", "18_property_specific", "19_detected_features"]
+    spec_adjustment = max(0.92, min(1.18, spec_factor))
+    apply_pricing_factor(divisions, spec_adjustment, f"{spec_level} specification calibration", spec_divisions)
+
+    pre_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key != "16_overheads")
+    pre_cost_per_sqft = int(pre_total / max(physical_bua, 1))
+    historical_factor, historical_count, historical_avg = historical_cost_factor(project_type, pre_cost_per_sqft)
+    pricing_context["historical_factor"] = round(historical_factor, 3)
+    pricing_context["historical_match_count"] = historical_count
+    pricing_context["historical_avg_cost_per_sqft"] = historical_avg
+    if historical_count >= 3:
+        apply_pricing_factor(divisions, historical_factor, f"historical BOQ calibration from {historical_count} matching records")
+
+    direct_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key not in ["16_overheads", "20_statutory"])
+    parcel = analysis.get("parcel_data") if isinstance(analysis.get("parcel_data"), dict) else {}
+    authority_text = " ".join([str(parcel.get("authority") or ""), str(parcel.get("rera_number") or ""), str(analysis.get("address") or "")]).lower()
+    statutory_rate = 0.006
+    if any(word in authority_text for word in ["dtcp", "hrera", "gurugram", "gurgaon"]):
+        statutory_rate = 0.010
+    elif any(word in authority_text for word in ["dda", "delhi"]):
+        statutory_rate = 0.008
+    elif any(word in authority_text for word in ["up-rera", "up rera", "noida", "greater noida"]):
+        statutory_rate = 0.009
+    statutory_items = [
+        item("RERA registration, statutory filings and professional liaison", 1, "allowance", max(150000, direct_total * statutory_rate), 18),
+        item("Authority approvals, fire NOC and occupancy documentation", 1, "allowance", max(250000, direct_total * 0.0045), 18),
+    ]
+    if parcel.get("permissible_far") or parcel.get("land_use") or parcel.get("authority"):
+        statutory_items.append(item("EDC/IDC/FAR premium placeholder pending authority schedule", 1, "allowance", max(300000, direct_total * 0.012), 18))
+    divisions["20_statutory"]["items"] = statutory_items
     direct_total = sum(sum(i["amount"] for i in div["items"]) for key, div in divisions.items() if key != "16_overheads")
     divisions["16_overheads"]["items"] = [
         item("Architectural, structural and MEP design fees", 1, "lump sum", direct_total * 0.055),
@@ -2846,7 +3750,15 @@ def calculate_estimate(analysis, takeoffs=None):
     total = subtotal
     gst = int(sum(sum(i["amount"] * (i.get("gst_rate", 12) / 100) for i in div["items"]) for div in divisions.values()))
 
-    return {
+    data_signal = pricing_context.get("data_signal") or {}
+    verified_rate_count = safe_int(data_signal.get("material_rate_count"), 0, 0) + safe_int(data_signal.get("cpwd_item_count"), 0, 0)
+    rate_source_parts = ["DSR/CPWD benchmark seed rates", rate_city, location_label, f"{spec_level} specification"]
+    if verified_rate_count:
+        rate_source_parts.append(f"{verified_rate_count} verified rate rows")
+    if historical_count >= 3:
+        rate_source_parts.append(f"{historical_count} historical BOQ calibration records")
+
+    result = {
         "currency": "INR",
         "built_up_area": physical_bua,
         "cost_per_sqft": int(total / max(physical_bua, 1)),
@@ -2861,15 +3773,18 @@ def calculate_estimate(analysis, takeoffs=None):
         },
         "total_with_gst": total + gst,
         "divisions": divisions,
-        "rates_source": "DSR/CPWD benchmark seed rates + Delhi NCR market allowances",
+        "pricing_context": pricing_context,
+        "rates_source": " + ".join(rate_source_parts),
         "disclaimer": "Indicative GST-compliant concept estimate. Replace seed rates with verified supplier and labour quotes before tender, bank submission or RERA filing."
     }
+    result["accuracy"] = estimate_accuracy_profile(analysis, takeoffs, result, project_type)
+    return result
 
 SCENARIO_DEFAULTS = {
     "name": "Scenario",
     "concrete_grade": "M25",
     "cement_type": "OPC 43",
-    "steel_rate": 82,
+    "steel_rate": 90,
     "finish_level": "standard",
     "flooring": "vitrified",
     "facade": "paint",
@@ -2898,7 +3813,7 @@ def normalize_scenario_options(options, analysis):
     normalized["window_glazing"] = normalized["window_glazing"] if normalized["window_glazing"] in SPEC_FACTORS["window_glazing"] else "standard_upvc"
     normalized["electrical_spec"] = normalized["electrical_spec"] if normalized["electrical_spec"] in SPEC_FACTORS["electrical_spec"] else "standard"
     normalized["plumbing_spec"] = normalized["plumbing_spec"] if normalized["plumbing_spec"] in SPEC_FACTORS["plumbing_spec"] else "standard"
-    normalized["steel_rate"] = safe_float(normalized.get("steel_rate"), 82, 45, 160)
+    normalized["steel_rate"] = safe_float(normalized.get("steel_rate"), 90, 45, 160)
     normalized["floor_height_ft"] = safe_float(normalized.get("floor_height_ft"), 10, 8, 16)
     normalized["forecast_months"] = safe_int(normalized.get("forecast_months"), 0, 0, 24)
     normalized["total_floors"] = safe_int(normalized.get("total_floors"), analysis.get("total_floors", 15), 1, 80)
@@ -2933,7 +3848,10 @@ def recalc_estimate_totals(estimate):
         "total_gst": gst,
     }
     estimate["total_with_gst"] = subtotal + gst
-    estimate["cost_per_sqft"] = int(subtotal / bua)
+    if estimate.get("cost_per_sqft_note"):
+        estimate["cost_per_sqft"] = None
+    else:
+        estimate["cost_per_sqft"] = int(subtotal / bua)
     return estimate
 
 def apply_factor_to_divisions(estimate, division_keys, factor, affected):
@@ -3142,12 +4060,15 @@ def update_project_estimate(project_id):
     if not isinstance(estimate.get("divisions"), dict):
         return jsonify({"success": False, "message": "Estimate divisions are required."}), 400
 
-    current = json.loads(row["estimate"]) if row["estimate"] else calculate_estimate(json.loads(row["analysis"]))
+    analysis = json.loads(row["analysis"])
+    takeoffs = json.loads(row["takeoffs"]) if row["takeoffs"] else None
+    current = json.loads(row["estimate"]) if row["estimate"] else calculate_estimate(analysis, takeoffs)
     current["divisions"] = estimate["divisions"]
     current["built_up_area"] = safe_int(estimate.get("built_up_area"), current.get("built_up_area", 1), 1)
     current = recalc_estimate_totals(current)
     current["rates_source"] = estimate.get("rates_source") or "User-edited BOQ and seed rate library"
     current["disclaimer"] = estimate.get("disclaimer") or current.get("disclaimer", "")
+    current["accuracy"] = estimate_accuracy_profile(analysis, takeoffs, current, analysis.get("project_type"))
 
     db.execute(
         "UPDATE projects SET estimate = ?, status = 'analyzed', updated_at = ? WHERE id = ?",
@@ -3180,6 +4101,7 @@ def project_report_payload(row):
     total_cost = safe_float(estimate.get("total_with_gst"), 0, 0)
     subtotal = safe_float(estimate.get("subtotal"), 0, 0)
     gst = estimate.get("gst_breakup") or {}
+    accuracy = estimate.get("accuracy") or estimate_accuracy_profile(analysis, takeoffs, estimate, analysis.get("project_type"))
     efficiency = round((carpet / bua) * 100, 2) if bua else 0
     far_used = round(bua / site_area, 2) if site_area else 0
     contingency = 0
@@ -3207,6 +4129,10 @@ def project_report_payload(row):
         "parking_spaces": analysis.get("parking_spaces", 0),
         "floors": analysis.get("total_floors", 0),
         "units": analysis.get("total_units", 0),
+        "accuracy_score": accuracy.get("score", 0),
+        "accuracy_grade": accuracy.get("grade", "medium"),
+        "accuracy_range_low": accuracy.get("range_low", 0),
+        "accuracy_range_high": accuracy.get("range_high", 0),
     }
     sections = {
         "project_overview": {
@@ -3238,6 +4164,8 @@ def project_report_payload(row):
             "divisions": estimate.get("divisions") or {},
             "gst_breakup": gst,
             "rates_source": estimate.get("rates_source"),
+            "accuracy": accuracy,
+            "pricing_context": estimate.get("pricing_context") or {},
         },
         "risks": review.get("risks") or [],
         "missing_information": review.get("missing_information") or [],
@@ -3251,6 +4179,66 @@ def project_report_payload(row):
         "scenarios": parsed,
         "brand": "Nirman.AI",
     }
+
+def render_report_html(report):
+    project = report.get("project") or {}
+    metrics = report.get("metrics") or {}
+    sections = report.get("sections") or {}
+    cost = (sections.get("cost") or {})
+    divisions = cost.get("divisions") or {}
+    rows = []
+    for div in divisions.values():
+        for line in div.get("items", []):
+            rows.append(
+                "<tr>"
+                f"<td>{html.escape(div.get('name') or '')}</td>"
+                f"<td>{html.escape(line.get('code') or '')}</td>"
+                f"<td>{html.escape(line.get('desc') or '')}</td>"
+                f"<td>{line.get('qty','')}</td>"
+                f"<td>{html.escape(str(line.get('unit') or ''))}</td>"
+                f"<td>Rs {int(safe_float(line.get('rate'),0,0)):,}</td>"
+                f"<td>Rs {int(safe_float(line.get('amount'),0,0)):,}</td>"
+                "</tr>"
+            )
+    return f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Nirman.AI Report</title>
+<style>
+body{{font-family:Arial,sans-serif;color:#111;margin:36px;line-height:1.45}}
+h1{{font-size:28px;margin:0 0 6px}} h2{{margin-top:28px;border-bottom:1px solid #ddd;padding-bottom:8px}}
+.brand{{font-weight:700;color:#1d6f86;letter-spacing:.08em}} .muted{{color:#666}}
+.metrics{{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}}
+.metric{{border:1px solid #ddd;padding:14px}} .metric b{{display:block;font-size:18px;margin-top:5px}}
+table{{width:100%;border-collapse:collapse;font-size:11px}} th,td{{border:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}} th{{background:#f2f6f8}}
+@page{{size:A4;margin:18mm}}
+</style></head><body>
+<div class="brand">Nirman.AI Construction Intelligence</div>
+<h1>{html.escape(project.get('name') or 'Project Report')}</h1>
+<div class="muted">{html.escape(project.get('address') or '')} | Generated {html.escape(report.get('generated_at') or '')}</div>
+<div class="metrics">
+<div class="metric">Estimate Range<b>Rs {int(metrics.get('accuracy_range_low') or 0):,} - Rs {int(metrics.get('accuracy_range_high') or 0):,}</b></div>
+<div class="metric">Total With GST<b>Rs {int(metrics.get('total_cost_with_gst') or 0):,}</b></div>
+<div class="metric">Built-up Area<b>{int(metrics.get('gross_construction_area_sqft') or 0):,} sqft</b></div>
+<div class="metric">Accuracy<b>{metrics.get('accuracy_score') or 0}/100 {html.escape(str(metrics.get('accuracy_grade') or ''))}</b></div>
+<div class="metric">Cost / sqft<b>{metrics.get('cost_per_sqft') or 'NA'}</b></div>
+<div class="metric">GST<b>Rs {int(metrics.get('gst_total') or 0):,}</b></div>
+</div>
+<h2>Project Summary</h2><p>{html.escape(str((sections.get('project_overview') or {})))}</p>
+<h2>Land / RERA</h2><p>{html.escape(str(sections.get('land_rera') or {}))}</p>
+<h2>AI Extraction Risks and Assumptions</h2>
+<p><b>Missing:</b> {html.escape('; '.join(sections.get('missing_information') or []) or 'None listed')}</p>
+<p><b>Assumptions:</b> {html.escape('; '.join(sections.get('assumptions') or []) or 'None listed')}</p>
+<h2>16-Division BOQ</h2><table><thead><tr><th>Division</th><th>Code</th><th>Description</th><th>Qty</th><th>Unit</th><th>Rate</th><th>Amount</th></tr></thead><tbody>{''.join(rows)}</tbody></table>
+<p class="muted">Indicative concept estimate. Verify drawings, statutory fees, supplier quotations, GST treatment and market rates before tender, bank or RERA submission.</p>
+</body></html>"""
+
+def ensure_share_token(row):
+    token = row["share_token"] if "share_token" in row.keys() and row["share_token"] else None
+    if token:
+        return token
+    token = uuid.uuid4().hex
+    get_db().execute("UPDATE projects SET share_token = ?, updated_at = ? WHERE id = ?", (token, now(), row["id"]))
+    get_db().commit()
+    return token
 
 @app.route("/api/projects/<project_id>/report", methods=["GET"])
 @require_auth
@@ -3282,10 +4270,12 @@ def project_report_csv(project_id):
     writer.writerow(["Taxable Value", estimate.get("subtotal")])
     writer.writerow(["CGST 6%", (estimate.get("gst_breakup") or {}).get("cgst_6pct")])
     writer.writerow(["SGST 6%", (estimate.get("gst_breakup") or {}).get("sgst_6pct")])
-    writer.writerow(["IGST", (estimate.get("gst_breakup") or {}).get("igst_12pct")])
-    writer.writerow(["Total GST", (estimate.get("gst_breakup") or {}).get("total_gst")])
+    gst_breakup = estimate.get("gst_breakup") or {}
+    writer.writerow(["IGST 12%", gst_breakup.get("igst_12pct", 0)])
+    writer.writerow(["IGST 18%", gst_breakup.get("igst_18pct", 0)])
+    writer.writerow(["Total GST", gst_breakup.get("total_gst")])
     writer.writerow(["Total With GST", estimate.get("total_with_gst")])
-    writer.writerow(["Cost Per Sqft", estimate.get("cost_per_sqft")])
+    writer.writerow(["Cost Per Sqft", estimate.get("cost_per_sqft") if estimate.get("cost_per_sqft") is not None else estimate.get("cost_per_sqft_note") or "Not applicable"])
     writer.writerow([])
     writer.writerow(["Division", "BOQ Code", "Description", "Qty", "Unit", "Rate", "GST %", "Amount", "Source"])
     for key, div in (estimate.get("divisions") or {}).items():
@@ -3296,6 +4286,79 @@ def project_report_csv(project_id):
         mimetype="text/csv",
         headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.csv"}
     )
+
+@app.route("/api/projects/<project_id>/report/pdf", methods=["GET"])
+@require_auth
+def project_report_pdf(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["estimate"]:
+        return jsonify({"success": False, "message": "Generate an estimate before exporting a PDF."}), 400
+    report = project_report_payload(row)
+    report_html = render_report_html(report)
+    try:
+        from weasyprint import HTML
+        pdf = HTML(string=report_html).write_pdf()
+        return Response(pdf, mimetype="application/pdf", headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.pdf"})
+    except Exception:
+        return Response(report_html, mimetype="text/html", headers={"Content-Disposition": f"attachment; filename=nirman_report_{project_id}.html"})
+
+@app.route("/api/projects/<project_id>/share", methods=["POST"])
+@require_auth
+def share_project_report(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    if not row["estimate"]:
+        return jsonify({"success": False, "message": "Generate an estimate before sharing."}), 400
+    token = ensure_share_token(row)
+    base_url = (request.host_url or "").rstrip("/")
+    link = f"{base_url}/report/{token}"
+    return jsonify({"success": True, "share_token": token, "url": link})
+
+@app.route("/report/<share_token>", methods=["GET"])
+def public_report_page(share_token):
+    row = get_db().execute("SELECT * FROM projects WHERE share_token = ?", (share_token,)).fetchone()
+    if not row or not row["estimate"]:
+        return Response("Report not found.", status=404)
+    return Response(render_report_html(project_report_payload(row)), mimetype="text/html")
+
+@app.route("/api/report/<share_token>", methods=["GET"])
+def public_report_json(share_token):
+    row = get_db().execute("SELECT * FROM projects WHERE share_token = ?", (share_token,)).fetchone()
+    if not row or not row["estimate"]:
+        return jsonify({"success": False, "message": "Report not found."}), 404
+    return jsonify({"success": True, "report": project_report_payload(row)})
+
+@app.route("/api/projects/<project_id>/share/email", methods=["POST"])
+@require_auth
+def share_project_email(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    token = ensure_share_token(row)
+    body = request.get_json() or {}
+    recipient = (body.get("email") or "").strip()
+    link = f"{(request.host_url or '').rstrip('/')}/report/{token}"
+    get_db().execute("INSERT INTO report_deliveries (id, project_id, user_id, channel, recipient, share_token, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (uid(), project_id, g.current_user["id"], "email", recipient, token, "link_created", now()))
+    get_db().commit()
+    subject = urllib.parse.quote(f"Nirman.AI estimate: {row['name']}")
+    mail_body = urllib.parse.quote(f"Open the Nirman.AI project report here: {link}")
+    return jsonify({"success": True, "url": link, "mailto": f"mailto:{recipient}?subject={subject}&body={mail_body}"})
+
+@app.route("/api/projects/<project_id>/share/whatsapp", methods=["POST"])
+@require_auth
+def share_project_whatsapp(project_id):
+    row = get_owned_project(project_id)
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+    token = ensure_share_token(row)
+    link = f"{(request.host_url or '').rstrip('/')}/report/{token}"
+    message = urllib.parse.quote(f"Nirman.AI estimate for {row['name']}: {link}")
+    get_db().execute("INSERT INTO report_deliveries (id, project_id, user_id, channel, recipient, share_token, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (uid(), project_id, g.current_user["id"], "whatsapp", "", token, "link_created", now()))
+    get_db().commit()
+    return jsonify({"success": True, "url": link, "whatsapp": f"https://wa.me/?text={message}"})
 
 @app.route("/api/projects/<project_id>/investor-report.csv", methods=["GET"])
 @require_auth
@@ -3543,6 +4606,41 @@ def admin_projects_export():
     for row in rows:
         writer.writerow([row["id"], row["name"], row["address"], row["project_type"], row["status"], row["file_name"], row["file_size"], row["user_name"], row["user_email"], row["created_at"], row["updated_at"]])
     return Response(output.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment; filename=nirman_projects.csv"})
+
+@app.route("/api/admin/feedback", methods=["GET"])
+def admin_feedback():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    rows = get_db().execute(
+        """
+        SELECT f.id, f.project_id, p.name AS project_name, u.email AS user_email,
+               f.rating, f.comment, f.actual_cost, f.created_at
+        FROM estimate_feedback f
+        LEFT JOIN projects p ON p.id = f.project_id
+        LEFT JOIN users u ON u.id = f.user_id
+        ORDER BY f.created_at DESC
+        LIMIT 200
+        """
+    ).fetchall()
+    return jsonify({"success": True, "feedback": [dict(r) for r in rows]})
+
+@app.route("/api/admin/rate-corrections", methods=["GET"])
+def admin_rate_corrections():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    rows = get_db().execute(
+        "SELECT * FROM rate_corrections ORDER BY created_at DESC LIMIT 300"
+    ).fetchall()
+    return jsonify({"success": True, "corrections": [dict(r) for r in rows]})
+
+@app.route("/api/admin/contractor-quotes", methods=["GET"])
+def admin_contractor_quotes():
+    if not require_admin_key():
+        return jsonify({"success": False, "message": "Unauthorized."}), 401
+    rows = get_db().execute(
+        "SELECT * FROM contractor_quotes ORDER BY created_at DESC LIMIT 300"
+    ).fetchall()
+    return jsonify({"success": True, "quotes": [dict(r) for r in rows]})
 
 @app.route("/api/admin/waitlist", methods=["GET"])
 def admin_waitlist():

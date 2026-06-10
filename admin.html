@@ -114,6 +114,9 @@ tr:hover td{background:var(--card)}
         <button class="tab" data-tab="projects">Projects</button>
         <button class="tab" data-tab="waitlist">Waitlist</button>
         <button class="tab" data-tab="rates">Rates</button>
+        <button class="tab" data-tab="feedback">Feedback</button>
+        <button class="tab" data-tab="corrections">Corrections</button>
+        <button class="tab" data-tab="quotes">Quotes</button>
       </div>
 
       <div class="table-tools">
@@ -179,16 +182,22 @@ async function loadAdmin(){
   const res=await fetch(`${API}/api/admin/summary?key=${encodeURIComponent(key)}`);
   const data=await res.json();
   if(!data.success){showError(data.message||"Unauthorized.");setLoggedIn(false);return}
-  const [usersRes,projectsRes,waitlistRes,ratesRes]=await Promise.all([
+  const [usersRes,projectsRes,waitlistRes,ratesRes,feedbackRes,correctionsRes,quotesRes]=await Promise.all([
     fetch(`${API}/api/admin/users?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
     fetch(`${API}/api/admin/projects?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
     fetch(`${API}/api/admin/waitlist?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
     fetch(`${API}/api/admin/rates?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/feedback?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/rate-corrections?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
+    fetch(`${API}/api/admin/contractor-quotes?key=${encodeURIComponent(key)}`).then(r=>r.json()).catch(()=>null),
   ]);
   if(usersRes?.success)data.users=usersRes.users;
   if(projectsRes?.success)data.projects=projectsRes.projects;
   if(waitlistRes?.success)data.waitlist=waitlistRes.waitlist;
   if(ratesRes?.success)data.rates=ratesRes.rates;
+  if(feedbackRes?.success)data.feedback=feedbackRes.feedback;
+  if(correctionsRes?.success)data.corrections=correctionsRes.corrections;
+  if(quotesRes?.success)data.quotes=quotesRes.quotes;
   localStorage.setItem("nirman_admin_key",key);
   state.data=data;
   els.exportLink.href=`${API}/api/waitlist/export?key=${encodeURIComponent(key)}`;
@@ -274,6 +283,39 @@ function renderTable(){
       </div>`;
     document.getElementById("addRateBtn").addEventListener("click",addRateRow);
     document.getElementById("saveRatesBtn").addEventListener("click",saveRates);
+  }
+  if(state.tab==="feedback"){
+    const rows=(d.feedback||[]).filter(matchesSearch);
+    els.tablePanel.innerHTML=table([
+      {label:"Project",render:r=>`<div class="strong">${esc(r.project_name)}</div><div class="mono">${esc(r.project_id)}</div>`},
+      {label:"User",render:r=>esc(r.user_email)},
+      {label:"Rating",render:r=>`<span class="badge">${esc(r.rating)}</span>`},
+      {label:"Actual Cost",render:r=>esc(r.actual_cost)},
+      {label:"Comment",render:r=>esc(r.comment)},
+      {label:"Date",render:r=>fmtDate(r.created_at)},
+    ],rows);
+  }
+  if(state.tab==="corrections"){
+    const rows=(d.corrections||[]).filter(matchesSearch);
+    els.tablePanel.innerHTML=table([
+      {label:"Item",render:r=>`<div class="strong">${esc(r.item)}</div><div class="mono">${esc(r.division)}</div>`},
+      {label:"Old Rate",render:r=>esc(r.old_rate)},
+      {label:"Corrected",render:r=>esc(r.corrected_rate)},
+      {label:"City",render:r=>esc(r.city)},
+      {label:"Type",render:r=>esc(r.property_type)},
+      {label:"Comment",render:r=>esc(r.comment)},
+    ],rows);
+  }
+  if(state.tab==="quotes"){
+    const rows=(d.quotes||[]).filter(matchesSearch);
+    els.tablePanel.innerHTML=table([
+      {label:"Material",render:r=>`<div class="strong">${esc(r.material)}</div><div class="mono">${esc(r.unit)}</div>`},
+      {label:"Rate",render:r=>esc(r.rate)},
+      {label:"City",render:r=>esc(r.city)},
+      {label:"Contractor",render:r=>esc(r.contractor_name)},
+      {label:"Source",render:r=>esc(r.source)},
+      {label:"Date",render:r=>fmtDate(r.created_at)},
+    ],rows);
   }
 }
 function render(){renderStats();renderTable()}

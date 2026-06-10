@@ -1287,6 +1287,12 @@ const api={
     const r=await fetch(`${API}${path}`,{method:"POST",headers:{Authorization:`Bearer ${this.token()}`},body:fd});
     return r.json();
   },
+  async uploadMany(path,files){
+    const fd=new FormData();
+    Array.from(files||[]).forEach(file=>fd.append("files",file));
+    const r=await fetch(`${API}${path}`,{method:"POST",headers:{Authorization:`Bearer ${this.token()}`},body:fd});
+    return r.json();
+  },
   fileUrl:path=>`${API}${path}?token=${encodeURIComponent(localStorage.getItem("nirman_token")||"")}`
 };
 
@@ -1571,6 +1577,8 @@ function DrawingReview({analysis}){
   const risks=review.risks||[];
   const assumptions=review.assumptions||[];
   const confidence=analysis.confidence||"medium";
+  const fieldConfidence=analysis.field_confidence||{};
+  const fieldEvidence=analysis.field_evidence||{};
   const score=confidence==="high"?86:confidence==="low"?48:68;
   const fields=[
     ["Building type",analysis.building_type,"AI extraction"],
@@ -1627,7 +1635,63 @@ function DrawingReview({analysis}){
         React.createElement("div",{className:"info-card-title"},"Extraction Confidence"),
         React.createElement("span",{className:`confidence ${confidence}`},confidence),
         React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:16}},analysis.scope_reason||"Review the extracted fields before using the estimate commercially."),
-        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:10}},analysis.ai_source==="demo_fallback"?"Demo fallback is active until the AI API key is added.":"Review the extracted fields before using the estimate commercially.")
+        React.createElement("p",{style:{color:"var(--dim)",fontSize:".82rem",lineHeight:1.6,marginTop:10}},analysis.ai_source==="demo_fallback"?"Demo fallback is active until the AI API key is added.":"Review the extracted fields before using the estimate commercially."),
+        Object.keys(fieldConfidence).length?React.createElement("div",{style:{marginTop:16}},
+          Object.keys(fieldConfidence).map(key=>React.createElement("div",{className:"info-row",key},
+            React.createElement("span",{className:"info-key"},key.replaceAll("_"," ")),
+            React.createElement("span",{className:"info-val"},`${fieldConfidence[key]}${fieldEvidence[key]?` · ${fieldEvidence[key]}`:""}`)
+          ))
+        ):null
+      )
+    )
+  );
+}
+
+function AnalysisConfirmationModal({draft,onConfirm,onCancel,loading}){
+  const [form,setForm]=useState(()=>({...draft}));
+  useEffect(()=>setForm({...draft}),[draft]);
+  if(!draft)return null;
+  const conf=draft.field_confidence||{};
+  const evidence=draft.field_evidence||{};
+  const set=(k,v)=>setForm(f=>({...f,[k]:["total_built_up_area_sqft","total_carpet_area_sqft","plot_area_sqft","total_floors","total_units","basement_levels","parking_spaces","lift_count"].includes(k)?Number(v):v}));
+  const fields=[
+    ["total_built_up_area_sqft","Built-up area sqft"],
+    ["total_carpet_area_sqft","Carpet area sqft"],
+    ["plot_area_sqft","Plot/site area sqft"],
+    ["total_floors","Floors"],
+    ["total_units","Units/keys/beds"],
+    ["basement_levels","Basements"],
+    ["parking_spaces","Parking spaces"],
+    ["lift_count","Lifts"],
+    ["spec_level","Spec level"]
+  ];
+  return React.createElement("div",{className:"modal-overlay"},
+    React.createElement("div",{className:"modal",style:{maxWidth:760}},
+      React.createElement("div",{className:"modal-header"},
+        React.createElement("div",null,
+          React.createElement("div",{className:"modal-title"},"Confirm AI Extraction"),
+          React.createElement("div",{className:"workflow-hint",style:{marginTop:8}},"Edit BUA, plot area, floors and spec before Nirman.AI runs the final BOQ.")
+        ),
+        React.createElement("button",{className:"modal-close",onClick:onCancel,disabled:loading},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("line",{x1:"18",y1:"6",x2:"6",y2:"18"}),React.createElement("line",{x1:"6",y1:"6",x2:"18",y2:"18"})))
+      ),
+      React.createElement("div",{className:"modal-body"},
+        draft.estimate_scope==="discipline_only"&&React.createElement("div",{className:"workflow-hint",style:{marginBottom:16,color:"var(--yellow)"}},`This looks like a ${draft.drawing_discipline||"discipline"}-only drawing. The estimate will cover that package only unless you upload the full architectural/structural set.`),
+        React.createElement("div",{className:"edit-grid"},
+          fields.map(([key,label])=>React.createElement("div",{className:"form-field",key:key},
+            React.createElement("label",null,label,conf[key]?` · ${conf[key]}`:""),
+            React.createElement("input",{value:form[key]??"",onChange:e=>set(key,e.target.value)}),
+            evidence[key]&&React.createElement("small",{style:{color:"var(--dim)",lineHeight:1.4}},evidence[key])
+          ))
+        ),
+        React.createElement("div",{className:"form-field",style:{marginTop:16}},
+          React.createElement("label",null,"Notes / assumptions"),
+          React.createElement("textarea",{value:form.notes||"",onChange:e=>set("notes",e.target.value)})
+        ),
+        React.createElement("div",{className:"workflow-hint",style:{marginTop:14}},"Use this as the QS checkpoint. Wrong BUA is the fastest way to get a wrong estimate, so confirm it before continuing.")
+      ),
+      React.createElement("div",{className:"modal-footer"},
+        React.createElement("button",{className:"btn-ghost-sm",onClick:onCancel,disabled:loading},"Back"),
+        React.createElement("button",{className:"btn-primary-sm",onClick:()=>onConfirm(form),disabled:loading},loading?"Running estimate...":"Confirm and Run Estimate")
       )
     )
   );
@@ -2379,6 +2443,33 @@ function TakeoffSummary({projectId,takeoffs,onUpdated,notify,onSaved,editable=fa
 }
 
 function ReportActions({project,notify}){
+  async function downloadPdf(){
+    const r=await fetch(`${API}/api/projects/${project.id}/report/pdf`,{headers:{Authorization:`Bearer ${api.token()}`}});
+    if(!r.ok){notify("Generate an estimate before exporting PDF.","error");return}
+    const blob=await r.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=`nirman-${project.name.replace(/[^a-z0-9]+/gi,"-").toLowerCase()}-report.${blob.type==="application/pdf"?"pdf":"html"}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+  async function copyShareLink(){
+    const d=await api.post(`/api/projects/${project.id}/share`,{});
+    if(!d.success){notify(d.message||"Could not create share link.","error");return}
+    await navigator.clipboard?.writeText(d.url);
+    notify("Share link copied.","success");
+  }
+  async function shareWhatsApp(){
+    const d=await api.post(`/api/projects/${project.id}/share/whatsapp`,{});
+    if(!d.success){notify(d.message||"Could not create WhatsApp link.","error");return}
+    window.open(d.whatsapp,"_blank");
+  }
+  async function shareEmail(){
+    const d=await api.post(`/api/projects/${project.id}/share/email`,{});
+    if(!d.success){notify(d.message||"Could not create email link.","error");return}
+    window.location.href=d.mailto;
+  }
   async function downloadEstimateCsv(){
     const r=await fetch(`${API}/api/projects/${project.id}/report.csv`,{headers:{Authorization:`Bearer ${api.token()}`}});
     if(!r.ok){notify("Generate an estimate before exporting report.","error");return}
@@ -2414,6 +2505,10 @@ function ReportActions({project,notify}){
   }
   return React.createElement("div",{className:"report-actions"},
     React.createElement("button",{className:"btn-new",onClick:()=>window.print()},"Print / Save PDF"),
+    React.createElement("button",{className:"btn-outline",onClick:downloadPdf},"Download PDF"),
+    React.createElement("button",{className:"btn-outline",onClick:copyShareLink},"Copy Share Link"),
+    React.createElement("button",{className:"btn-outline",onClick:shareWhatsApp},"WhatsApp"),
+    React.createElement("button",{className:"btn-outline",onClick:shareEmail},"Email"),
     React.createElement("button",{className:"btn-outline",onClick:downloadEstimateCsv},"Download Estimate CSV"),
     React.createElement("button",{className:"btn-outline",onClick:downloadInvestorCsv},"Download Investor CSV"),
     React.createElement("button",{className:"btn-outline",onClick:downloadReportJson},"Download Report JSON")
@@ -2448,6 +2543,146 @@ function RateLibrary(){
       table("BOQ Seed Rates",library?.boq||[])
     ),
     React.createElement("div",{className:"disclaimer"},library?.note||"Loading rate library...")
+  );
+}
+
+function EstimateFeedback({projectId,notify}){
+  const [rating,setRating]=useState("");
+  const [comment,setComment]=useState("");
+  const [actualCost,setActualCost]=useState("");
+  const [saving,setSaving]=useState(false);
+  async function save(){
+    if(!rating){notify("Choose thumbs up or down first.","error");return}
+    setSaving(true);
+    const d=await api.post(`/api/projects/${projectId}/feedback`,{rating,comment,actual_cost:actualCost});
+    setSaving(false);
+    if(d.success){notify("Feedback saved for calibration.","success");setComment("");setActualCost("")}
+    else notify(d.message||"Could not save feedback.","error");
+  }
+  return React.createElement("div",{className:"info-card"},
+    React.createElement("div",{className:"info-card-title"},"Estimate Feedback"),
+    React.createElement("p",{className:"workflow-hint"},"QS review, builder corrections and actual tender values become Nirman.AI calibration data."),
+    React.createElement("div",{className:"edit-actions"},
+      React.createElement("button",{className:`btn-outline ${rating==="up"?"active":""}`,onClick:()=>setRating("up")},"Accurate"),
+      React.createElement("button",{className:`btn-outline ${rating==="down"?"active":""}`,onClick:()=>setRating("down")},"Needs Correction")
+    ),
+    React.createElement("div",{className:"edit-grid",style:{marginTop:14}},
+      React.createElement("div",{className:"form-field"},React.createElement("label",null,"Actual / quoted total cost"),React.createElement("input",{type:"number",value:actualCost,onChange:e=>setActualCost(e.target.value),placeholder:"Optional"})),
+      React.createElement("div",{className:"form-field"},React.createElement("label",null,"Correction comment"),React.createElement("input",{value:comment,onChange:e=>setComment(e.target.value),placeholder:"What felt high/low?"}))
+    ),
+    React.createElement("button",{className:"btn-primary-sm",onClick:save,disabled:saving},saving?"Saving...":"Save Feedback")
+  );
+}
+
+function AdditionalDrawingUploader({projectId,notify}){
+  const inputRef=useRef();
+  const [saving,setSaving]=useState(false);
+  async function upload(files){
+    if(!files||!files.length)return;
+    setSaving(true);
+    const d=await api.uploadMany(`/api/projects/${projectId}/drawings`,files);
+    setSaving(false);
+    if(d.success)notify(d.message||"Additional drawings uploaded.","success");
+    else notify(d.message||"Could not upload drawings.","error");
+  }
+  return React.createElement("div",{className:"info-card"},
+    React.createElement("input",{ref:inputRef,type:"file",multiple:true,accept:".pdf,.png,.jpg,.jpeg,.dxf,.dwg",style:{display:"none"},onChange:e=>upload(e.target.files)}),
+    React.createElement("div",{className:"info-card-title"},"Additional Drawing Set"),
+    React.createElement("p",{className:"workflow-hint"},"Upload HVAC, electrical, plumbing, structural, interior, DXF or extra architectural sheets. Nirman.AI stores them against the same project for merged analysis."),
+    React.createElement("button",{className:"btn-outline",onClick:()=>inputRef.current?.click(),disabled:saving},saving?"Uploading...":"Upload More Drawings")
+  );
+}
+
+function HistoricalBoqUploader({projectId,notify}){
+  const inputRef=useRef();
+  const [saving,setSaving]=useState(false);
+  async function upload(file){
+    if(!file)return;
+    const fd=new FormData();
+    fd.append("file",file);
+    setSaving(true);
+    const r=await fetch(`${API}/api/projects/${projectId}/historical-boq`,{method:"POST",headers:{Authorization:`Bearer ${api.token()}`},body:fd});
+    const d=await r.json();
+    setSaving(false);
+    if(d.success)notify(`Historical BOQ stored: ${d.matched_rows||0} rows parsed.`,"success");
+    else notify(d.message||"Could not upload BOQ.","error");
+  }
+  return React.createElement("div",{className:"info-card"},
+    React.createElement("input",{ref:inputRef,type:"file",accept:".csv",style:{display:"none"},onChange:e=>upload(e.target.files[0])}),
+    React.createElement("div",{className:"info-card-title"},"Historical BOQ Learning"),
+    React.createElement("p",{className:"workflow-hint"},"Upload past BOQ CSVs with item, quantity, unit, rate and amount columns. Matching rates become calibration data for future estimates."),
+    React.createElement("button",{className:"btn-outline",onClick:()=>inputRef.current?.click(),disabled:saving},saving?"Learning...":"Upload Past BOQ CSV")
+  );
+}
+
+function EstimateAccuracyPanel({estimate}){
+  const accuracy=estimate?.accuracy;
+  if(!accuracy)return null;
+  const drivers=accuracy.drivers||[];
+  const actions=accuracy.improvement_actions||[];
+  const missing=accuracy.missing_inputs||[];
+  const pricing=estimate?.pricing_context||{};
+  const dataSignal=pricing.data_signal||{};
+  const gradeLabel=(accuracy.grade||"medium").toUpperCase();
+  return React.createElement("div",{className:"info-card"},
+    React.createElement("div",{className:"info-card-title"},"Estimate Accuracy"),
+    React.createElement("div",{className:"cost-summary-grid",style:{marginTop:14}},
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Accuracy Score"),
+        React.createElement("div",{className:"cost-sum-value"},`${accuracy.score||0}/100`),
+        React.createElement("div",{className:"cost-sum-sub"},`${gradeLabel} confidence`)
+      ),
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Expected Range"),
+        React.createElement("div",{className:"cost-sum-value"},`${fmt.inr(accuracy.range_low||0)} - ${fmt.inr(accuracy.range_high||0)}`),
+        React.createElement("div",{className:"cost-sum-sub"},`±${accuracy.range_percent||0}% current uncertainty`)
+      ),
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Rate Confidence"),
+        React.createElement("div",{className:"cost-sum-value",style:{fontSize:"1.1rem"}},(accuracy.rate_confidence||"seed_rates").replaceAll("_"," ")),
+        React.createElement("div",{className:"cost-sum-sub"},"Tighten with supplier/DSR rates")
+      )
+    ),
+    pricing&&Object.keys(pricing).length?React.createElement("div",{className:"cost-summary-grid",style:{marginTop:1}},
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Market Calibration"),
+        React.createElement("div",{className:"cost-sum-value",style:{fontSize:"1rem"}},pricing.location_label||"Delhi NCR seed market"),
+        React.createElement("div",{className:"cost-sum-sub"},`Factor ${pricing.location_factor||1}`)
+      ),
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Specification"),
+        React.createElement("div",{className:"cost-sum-value",style:{fontSize:"1rem"}},pricing.spec_level||"standard"),
+        React.createElement("div",{className:"cost-sum-sub"},`Factor ${pricing.spec_factor||1}`)
+      ),
+      React.createElement("div",{className:"cost-sum-item"},
+        React.createElement("div",{className:"cost-sum-label"},"Data Calibration"),
+        React.createElement("div",{className:"cost-sum-value",style:{fontSize:"1rem"}},`${(Number(dataSignal.material_rate_count)||0)+(Number(dataSignal.cpwd_item_count)||0)} rates · ${pricing.historical_match_count||0} BOQs`),
+        React.createElement("div",{className:"cost-sum-sub"},pricing.historical_avg_cost_per_sqft?`Historic avg ₹${fmt.num(pricing.historical_avg_cost_per_sqft)}/sqft`:"Need 3+ matching BOQs")
+      )
+    ):null,
+    React.createElement("div",{className:"review-grid",style:{marginTop:18}},
+      drivers.slice(0,6).map((d,i)=>React.createElement("div",{className:"review-card",key:`driver-${i}`},
+        React.createElement("div",{className:"review-card-head"},
+          React.createElement("span",{className:`review-pill ${d.status==="good"?"good":d.status==="missing"?"bad":"warn"}`},d.status),
+          React.createElement("span",null,d.impact||"medium")
+        ),
+        React.createElement("div",{className:"review-card-title"},d.label),
+        React.createElement("p",null,d.detail)
+      ))
+    ),
+    React.createElement("div",{className:"analysis-grid",style:{marginTop:18}},
+      React.createElement("div",{className:"info-card",style:{padding:18}},
+        React.createElement("div",{className:"info-card-title"},"Missing Inputs"),
+        missing.length?missing.map(item=>React.createElement("div",{className:"info-row",key:item},
+          React.createElement("span",{className:"info-key"},"Needed"),
+          React.createElement("span",{className:"info-val"},item)
+        )):React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6}},"No major missing inputs flagged.")
+      ),
+      React.createElement("div",{className:"info-card",style:{padding:18}},
+        React.createElement("div",{className:"info-card-title"},"Best Accuracy Upgrades"),
+        actions.length?actions.map(action=>React.createElement("p",{key:action,style:{color:"var(--dim)",lineHeight:1.55,margin:"0 0 10px"}},"• ",action)):React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.6}},"Your estimate has the key inputs currently available.")
+      )
+    )
   );
 }
 
@@ -2654,7 +2889,7 @@ function ScenarioSimulator({projectId,analysis,estimate,notify}){
     name:"Option A",
     concrete_grade:"M25",
     cement_type:"OPC 43",
-    steel_rate:82,
+    steel_rate:90,
     finish_level:"standard",
     flooring:"vitrified",
     facade:"paint",
@@ -2995,13 +3230,14 @@ function ProfessionalReportPanel({project,analysis,estimate,takeoffs,notify}){
   const divisions=estimate?.divisions||{};
   const divisionRows=Object.entries(divisions).slice(0,8);
   const forecastDelta=estimate?.total_with_gst?Math.round(estimate.total_with_gst*.062):0;
+  const accuracy=estimate?.accuracy||{};
   const summaryCards=[
     ["Project",project.name],
     ["Location",parcel.address||project.address||"Delhi NCR"],
     ["RERA / Plot",parcel.rera_number||parcel.plot_number||parcel.khasra_number||"Pending"],
     ["Built-up Area",fmt.sqft(analysis?.total_built_up_area_sqft||estimate?.built_up_area)],
     ["Total Cost",fmt.inr(estimate?.total_with_gst||0)],
-    ["Cost / sqft",`₹${fmt.num(estimate?.cost_per_sqft||0)}`]
+    ["Accuracy",accuracy.score?`${accuracy.score}/100 · ${(accuracy.grade||"medium").toUpperCase()}`:"Pending"]
   ];
   const section=(title,body)=>React.createElement("div",{className:"report-section-card"},
     React.createElement("h4",null,title),
@@ -3011,6 +3247,7 @@ function ProfessionalReportPanel({project,analysis,estimate,takeoffs,notify}){
     ["Project Summary",`${project.name} is tracked as ${project.project_type?.replace("_"," ")||"residential project"} with ${fmt.sqft(analysis?.total_built_up_area_sqft||estimate?.built_up_area)} built-up area and ${fmt.num(analysis?.total_units||0)} units.`],
     ["Land / RERA Details",`Plot: ${parcel.plot_number||"pending"}. Khasra: ${parcel.khasra_number||"pending"}. RERA: ${parcel.rera_number||"pending"}. FAR/FSI: ${parcel.permissible_far||"pending"}.`],
     ["AI Extraction Summary",`Detected ${analysis?.total_floors||"—"} floors, ${analysis?.basement_levels||0} basement levels, ${analysis?.structure_type||"RCC frame"} structure and ${analysis?.confidence||"medium"} confidence.`],
+    ["Estimate Accuracy",accuracy.score?`Accuracy score ${accuracy.score}/100 with expected range ${fmt.inr(accuracy.range_low||0)} to ${fmt.inr(accuracy.range_high||0)}. Top improvement: ${(accuracy.improvement_actions||[])[0]||"verify drawings and rates"}.`:"Accuracy profile will appear after estimate generation."],
     ["Takeoff Quantities",`Wall ${fmt.sqft(q.wall_area_sqft)}, slab ${fmt.sqft(q.slab_area_sqft)}, facade ${fmt.sqft(q.facade_area_sqft)}, glazing ${fmt.sqft(q.window_glazing_area_sqft)}, flooring ${fmt.sqft(q.flooring_area_sqft)}.`],
     ["GST Summary",`Taxable value ${fmt.inr(estimate?.subtotal||0)}. CGST ${fmt.inr(gst.cgst_6pct||0)}, SGST ${fmt.inr(gst.sgst_6pct||0)}, total GST ${fmt.inr(gst.total_gst||estimate?.gst_12pct||0)}.`],
     ["Forecast Summary",`MVP 12-month escalation exposure is approximately ${fmt.inr(forecastDelta)} until live supplier/DSR time-series data is connected.`],
@@ -3231,6 +3468,8 @@ function ProjectDetail({projectId,onBack,notify}){
   const [project,setProject]=useState(null);
   const [loading,setLoading]=useState(true);
   const [analyzing,setAnalyzing]=useState(false);
+  const [confirming,setConfirming]=useState(false);
+  const [pendingExtraction,setPendingExtraction]=useState(null);
   const [uploading,setUploading]=useState(false);
   const [openDiv,setOpenDiv]=useState(null);
   const [activeStep,setActiveStep]=useState("upload");
@@ -3264,11 +3503,32 @@ function ProjectDetail({projectId,onBack,notify}){
 
   async function analyze(){
     setAnalyzing(true);
-    notify("AI is analyzing your drawing. This takes about 30 seconds...","success");
-    const d=await api.post(`/api/projects/${projectId}/analyze`,{});
+    notify("AI is reading your drawing. You will confirm BUA before final estimate.","success");
+    const d=await api.post(`/api/projects/${projectId}/analyze`,{draft:true});
     setAnalyzing(false);
-    if(d.success){notify("Analysis complete. Cost estimate ready.","success");await load();setActiveStep("review");}
+    if(d.success&&d.needs_confirmation){
+      setPendingExtraction({analysis:d.analysis,drawing_sheets:d.drawing_sheets,drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});
+      notify("AI extraction ready. Confirm key fields to run the BOQ.","success");
+    }
+    else if(d.success){notify("Analysis complete. Cost estimate ready.","success");await load();setActiveStep("review");}
     else notify(d.message||"Analysis failed.","error");
+  }
+
+  async function confirmExtraction(analysisDraft){
+    if(!pendingExtraction)return;
+    setConfirming(true);
+    const d=await api.post(`/api/projects/${projectId}/confirm-analysis`,{
+      analysis:analysisDraft,
+      drawing_sheets:pendingExtraction.drawing_sheets,
+      drawing_regions:pendingExtraction.drawing_regions
+    });
+    setConfirming(false);
+    if(d.success){
+      setPendingExtraction(null);
+      setProject(p=>({...p,analysis:d.analysis,estimate:d.estimate,drawing_sheets:d.drawing_sheets,drawing_regions:d.drawing_regions,takeoffs:d.takeoffs,status:"analyzed"}));
+      notify("Confirmed. Estimate and AI validation are ready.","success");
+      setActiveStep("review");
+    }else notify(d.message||"Could not confirm extraction.","error");
   }
 
   function handleAnalysisUpdate(analysis,estimate){
@@ -3299,7 +3559,7 @@ function ProjectDetail({projectId,onBack,notify}){
   const workflow=[
     {id:"upload",name:"Upload",note:project.file_name||"Add PDF/drawing",label:"Step 01",title:"Upload architectural drawing",copy:"Start with the architectural PDF or drawing image. Once uploaded, the next screen runs AI review and extraction.",done:["uploaded","analyzed"].includes(project.status)},
     {id:"land",name:"Land",note:"Plot, khasra, RERA",label:"Step 02",title:"Parcel and land details",copy:"Capture address, plot or khasra number, RERA reference, FAR/FSI and site boundary information before final reporting.",done:!!project.parcel_data,locked:project.status==="created",state:project.parcel_data?"approved":"needs review"},
-    {id:"review",name:"AI Approval",note:"Check AI results",label:"Step 03",title:"AI approval and extraction review",copy:"Review extracted project statistics, risks, assumptions and missing information. Save corrections before moving ahead.",done:!!analysis&&!needsApproval,locked:project.status==="created",state:analysis?(needsApproval?"needs review":"approved"):"not started"},
+    {id:"review",name:"AI Approval",note:"Confirm BUA",label:"Step 03",title:"AI approval and extraction review",copy:"Confirm built-up area, plot area, floor count, spec level, risks, assumptions and missing information before the estimate is trusted.",done:!!analysis&&!needsApproval,locked:project.status==="created",state:analysis?(needsApproval?"needs review":"approved"):"not started"},
     {id:"sheets",name:"Drawing Pages",note:"Sheets and overlays",label:"Step 04",title:"Page-level drawing intelligence",copy:"Classify sheets, inspect PDF pages, calibrate scale/floor height and adjust visual regions of interest.",done:(project.drawing_sheets||[]).length>0,locked:!analysis,state:(project.drawing_sheets||[]).length?"approved":"needs review"},
     {id:"takeoffs",name:"Takeoffs",note:"Quantities",label:"Step 05",title:"Automated takeoff output",copy:"Review slab, wall, facade, glazing, flooring, plaster/paint and MEP quantity allowances produced from the reviewed drawing data.",done:!!takeoffs,locked:!analysis},
     {id:"model",name:"3D Model",note:"Massing model",label:"Step 06",title:"3D massing and geometry view",copy:"Explore the current model generated from the project metrics. Later this becomes true drawing-to-3D reconstruction.",done:!!analysis,locked:!analysis},
@@ -3330,12 +3590,12 @@ function ProjectDetail({projectId,onBack,notify}){
   const primaryDisabled=(activeStep==="review"&&!analysis&&!canAnalyze)||activeIndex===workflow.length-1;
 
   const UploadStep=()=>React.createElement(React.Fragment,null,
-    React.createElement("input",{ref:fileRef,type:"file",accept:".pdf,.png,.jpg,.jpeg",style:{display:"none"},onChange:e=>handleUpload(e.target.files[0])}),
+    React.createElement("input",{ref:fileRef,type:"file",accept:".pdf,.png,.jpg,.jpeg,.dxf,.dwg",style:{display:"none"},onChange:e=>handleUpload(e.target.files[0])}),
     project.status==="created"?React.createElement("div",{className:"upload-zone",onClick:()=>fileRef.current?.click(),onDragOver:e=>{e.preventDefault();e.currentTarget.classList.add("drag")},onDragLeave:e=>e.currentTarget.classList.remove("drag"),onDrop:e=>{e.preventDefault();e.currentTarget.classList.remove("drag");handleUpload(e.dataTransfer.files[0])}},
       React.createElement("div",{className:"upload-icon"},React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("path",{d:"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"}),React.createElement("polyline",{points:"17 8 12 3 7 8"}),React.createElement("line",{x1:"12",y1:"3",x2:"12",y2:"15"}))),
       React.createElement("div",{className:"upload-title"},"Upload Architectural Drawing"),
       React.createElement("div",{className:"upload-sub"},"Drag and drop your file here, or click to browse"),
-      React.createElement("div",{className:"upload-formats"},"PDF · PNG · JPG — Max 20MB")
+      React.createElement("div",{className:"upload-formats"},"PDF · PNG · JPG · DXF · DWG — Max 20MB")
     ):React.createElement("div",{className:"analysis-grid"},
       React.createElement("div",{className:"info-card"},
         React.createElement("div",{className:"info-card-title"},"Uploaded File"),
@@ -3346,7 +3606,8 @@ function ProjectDetail({projectId,onBack,notify}){
         React.createElement("div",{className:"info-card-title"},"Workflow Status"),
         React.createElement("p",{style:{color:"var(--dim)",lineHeight:1.7}},project.status==="uploaded"?"Drawing is uploaded. Continue to AI review to extract building data and create the first estimate.":"Analysis exists. You can go back, replace the drawing, or continue through the review screens."),
         canAnalyze&&React.createElement("button",{className:"btn-new",style:{marginTop:18},onClick:analyze,disabled:analyzing},analyzing?"Analyzing...":"Run AI Review")
-      )
+      ),
+      React.createElement(AdditionalDrawingUploader,{projectId,notify})
     )
   );
 
@@ -3362,11 +3623,13 @@ function ProjectDetail({projectId,onBack,notify}){
       `Package estimate only: ${analysis.drawing_discipline||"discipline"} drawing detected. This is not the full ${analysis.building_type||"project"} construction estimate.`
     ),
     React.createElement(ReportActions,{project,notify}),
+    React.createElement(EstimateAccuracyPanel,{estimate}),
+    React.createElement(EstimateFeedback,{projectId,notify}),
     React.createElement(BOQEditor,{projectId,estimate,onUpdated:handleEstimateUpdate,notify,onSaved:goNext}),
     React.createElement("div",{className:"cost-summary"},
       React.createElement("div",{className:"cost-summary-grid"},
-        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},analysis?.estimate_scope==="discipline_only"?"Package Estimate":"Total Construction Cost"),React.createElement("div",{className:"cost-sum-value"},fmt.inr(estimate.total_with_gst)),React.createElement("div",{className:"cost-sum-sub"},analysis?.estimate_scope==="discipline_only"?"Including applicable GST":"Including applicable GST")),
-        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},"Cost per Sqft"),React.createElement("div",{className:"cost-sum-value"},`₹${fmt.num(estimate.cost_per_sqft)}`),React.createElement("div",{className:"cost-sum-sub"},"Built-up area basis")),
+        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},analysis?.estimate_scope==="discipline_only"?"Package Estimate Range":"Concept Cost Range"),React.createElement("div",{className:"cost-sum-value"},estimate.accuracy?.range_low?`${fmt.inr(estimate.accuracy.range_low)} - ${fmt.inr(estimate.accuracy.range_high)}`:fmt.inr(estimate.total_with_gst)),React.createElement("div",{className:"cost-sum-sub"},`Engine total ${fmt.inr(estimate.total_with_gst)} including GST`)),
+        React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},analysis?.estimate_scope==="discipline_only"?"Package Cost / Sqft":"Cost per Sqft"),React.createElement("div",{className:"cost-sum-value"},estimate.cost_per_sqft===null||estimate.cost_per_sqft===undefined?"Not applicable":`₹${fmt.num(estimate.cost_per_sqft)}`),React.createElement("div",{className:"cost-sum-sub"},estimate.cost_per_sqft_note||"Built-up area basis")),
         React.createElement("div",{className:"cost-sum-item"},React.createElement("div",{className:"cost-sum-label"},"Built-up Area"),React.createElement("div",{className:"cost-sum-value"},fmt.sqft(estimate.built_up_area)),React.createElement("div",{className:"cost-sum-sub"},estimate.rates_source))
       )
     ),
@@ -3407,11 +3670,12 @@ function ProjectDetail({projectId,onBack,notify}){
     if(activeStep==="estimate")return React.createElement(CostEstimateStep,null);
     if(activeStep==="scenario")return hasEstimate?React.createElement(ScenarioSimulator,{projectId,analysis,estimate,notify}):React.createElement(StepPlaceholder,{title:"Scenario needs an estimate",body:"Generate a cost estimate first, then you can compare RCC, cement, facade, floor height and finish options.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
     if(activeStep==="forecast")return hasEstimate?React.createElement("div",{className:"workflow-stack"},React.createElement(CostForecastPanel,{estimate}),React.createElement(RateLibrary,null)):React.createElement(StepPlaceholder,{title:"Forecast needs an estimate",body:"Forecasting starts after the BOQ and total project cost are available.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
-    if(activeStep==="report")return hasEstimate?React.createElement(ProfessionalReportPanel,{project,analysis,estimate,takeoffs,notify}):React.createElement(StepPlaceholder,{title:"Report needs an estimate",body:"Generate the BOQ and GST estimate first, then Nirman.AI can assemble the bank-ready report.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
+    if(activeStep==="report")return hasEstimate?React.createElement("div",{className:"workflow-stack"},React.createElement(ProfessionalReportPanel,{project,analysis,estimate,takeoffs,notify}),React.createElement(HistoricalBoqUploader,{projectId,notify})):React.createElement(StepPlaceholder,{title:"Report needs an estimate",body:"Generate the BOQ and GST estimate first, then Nirman.AI can assemble the bank-ready report.",action:()=>setActiveStep("estimate"),label:"Go to Estimate"});
     return null;
   }
 
   return React.createElement("div",null,
+    pendingExtraction&&React.createElement(AnalysisConfirmationModal,{draft:pendingExtraction.analysis,onConfirm:confirmExtraction,onCancel:()=>setPendingExtraction(null),loading:confirming}),
     React.createElement("div",{className:"detail-header"},
       React.createElement("button",{className:"back-btn",onClick:onBack},
         React.createElement("svg",{viewBox:"0 0 24 24"},React.createElement("polyline",{points:"15 18 9 12 15 6"})),
@@ -3430,7 +3694,7 @@ function ProjectDetail({projectId,onBack,notify}){
     ),
 
     React.createElement("div",{className:"page-body"},
-      React.createElement("input",{ref:fileRef,type:"file",accept:".pdf,.png,.jpg,.jpeg",style:{display:"none"},onChange:e=>handleUpload(e.target.files[0])}),
+      React.createElement("input",{ref:fileRef,type:"file",accept:".pdf,.png,.jpg,.jpeg,.dxf,.dwg",style:{display:"none"},onChange:e=>handleUpload(e.target.files[0])}),
       analyzing&&React.createElement("div",{className:"loading-state"},
         React.createElement("div",{className:"spinner"}),
         React.createElement("p",null,"AI is reading your drawing and generating cost estimate...")

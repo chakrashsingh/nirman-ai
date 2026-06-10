@@ -3,3 +3,5 @@ flask-cors
 gunicorn
 PyMuPDF
 psycopg2-binary
+weasyprint
+ezdxf
