@@ -542,15 +542,19 @@ class PostgresDB:
     def __init__(self, conn):
         self.conn = conn
 
+    def _cursor(self):
+        # Always use DictCursor so fetchone()["col"] works consistently.
+        return self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+
     def execute(self, sql, params=()):
-        cur = self.conn.cursor()
+        cur = self._cursor()
         cur.execute(self.convert_sql(sql), params or ())
         return cur
 
     def executescript(self, script):
-        cur = self.conn.cursor()
-        # psycopg2 does not support multiple statements in a single execute() call.
+        # psycopg2 does not support multiple statements in one execute() call.
         # Split on semicolons and run each non-empty statement individually.
+        cur = self._cursor()
         statements = [s.strip() for s in script.split(";") if s.strip()]
         for stmt in statements:
             cur.execute(stmt)
