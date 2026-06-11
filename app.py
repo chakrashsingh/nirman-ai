@@ -568,11 +568,11 @@ class PostgresDB:
 
     @staticmethod
     def convert_sql(sql):
+        # First escape any literal % in LIKE clauses to %% so psycopg2
+        # does not treat them as extra format placeholders.
+        sql = re.sub(r"LIKE\s+'([^']*)'", lambda m: "LIKE '" + m.group(1).replace("%", "%%") + "'", sql, flags=re.IGNORECASE)
         sql = sql.replace("?", "%s")
         sql = sql.replace("INSERT OR IGNORE INTO", "INSERT INTO")
-        # Convert SQLite ON CONFLICT(col) DO UPDATE SET ... = excluded.col
-        # to Postgres syntax (already valid) — no change needed there.
-        # Convert "ON CONFLICT(item) DO NOTHING" for Postgres compatibility.
         sql = re.sub(r"ON CONFLICT\((\w+)\) DO NOTHING", r"ON CONFLICT(\1) DO NOTHING", sql)
         return sql
 
