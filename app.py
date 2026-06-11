@@ -303,7 +303,7 @@ PROPERTY_COST_PROFILES = {
         "finish_multiplier": 1.38,
     },
 }
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-5")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "auto").strip()
 GEMINI_MODEL_PREFERENCE = os.environ.get(
     "GEMINI_MODEL_PREFERENCE",
@@ -2183,6 +2183,7 @@ def analyze_project(project_id):
         return jsonify({
             "success": False,
             "message": raw_analysis.get("ai_error_message") or "AI analysis failed. Please try again.",
+            "error_detail": raw_analysis.get("ai_error_detail", ""),
             "retryable": True,
         }), 502
     analysis = enrich_analysis_scope(raw_analysis, row)
@@ -3060,7 +3061,15 @@ def analyze_with_anthropic(project, mime, b64):
             data["ai_model"] = ANTHROPIC_MODEL
             data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
             return normalize_analysis(data, project["name"])
-        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
+        except urllib.error.HTTPError as exc:
+            try:
+                body = exc.read().decode("utf-8", errors="replace")
+            except Exception:
+                body = ""
+            errors.append(f"HTTP {exc.code}: {body[:300]}")
+            if attempt < 2:
+                time.sleep(2)
+        except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
             errors.append(str(exc))
             if attempt < 2:
                 time.sleep(2)
