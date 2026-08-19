@@ -3503,15 +3503,64 @@ function ProjectDetail({projectId,onBack,notify}){
 
   async function analyze(){
     setAnalyzing(true);
-    notify("AI is reading your drawing. You will confirm BUA before final estimate.","success");
-    const d=await api.post(`/api/projects/${projectId}/analyze`,{draft:true});
-    setAnalyzing(false);
-    if(d.success&&d.needs_confirmation){
-      setPendingExtraction({analysis:d.analysis,drawing_sheets:d.drawing_sheets,drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});
-      notify("AI extraction ready. Confirm key fields to run the BOQ.","success");
+    notify("AI is reading your drawing. This can take a few minutes for large PDFs — please keep this tab open.","success");
+    let start;
+    try{
+      // Start async job — returns immediately with job_id
+      start=await api.post(`/api/projects/${projectId}/analyze`,{draft:true});
+    }catch(err){
+      setAnalyzing(false);
+      notify("Analysis could not start. Please check your connection and try again.","error");
+      return;
     }
-    else if(d.success){notify("Analysis complete. Cost estimate ready.","success");await load();setActiveStep("review");}
-    else notify(d.message||"Analysis failed.","error");
+    if(!start.success||!start.job_id){
+      setAnalyzing(false);
+      notify(start.message||"Analysis failed to start.","error");
+      return;
+    }
+    const jobId=start.job_id;
+    // Poll for result every 6 seconds
+    let attempts=0;
+    const maxAttempts=70; // 70 * 6s = 7 minutes max, aligned with backend timeout
+    const poll=async()=>{
+      attempts++;
+      if(attempts>maxAttempts){
+        setAnalyzing(false);
+        notify("Analysis is taking too long. Try a smaller PDF or fewer pages, then run AI review again.","error");
+        return;
+      }
+      let d;
+      try{
+        d=await api.get(`/api/projects/${projectId}/analyze/status/${jobId}`);
+      }catch(err){
+        setAnalyzing(false);
+        notify("Analysis status could not be checked. Please refresh the project and try again.","error");
+        return;
+      }
+      if(!d.success&&d.status==="error"){
+        setAnalyzing(false);
+        notify(d.message||"Analysis failed. Please try again.","error");
+        return;
+      }
+      if(!d.success){
+        setAnalyzing(false);
+        notify(d.message||"Analysis failed. Please try again.","error");
+        return;
+      }
+      if(d.status==="queued"||d.status==="running"){
+        setTimeout(poll,6000);
+        return;
+      }
+      // done
+      setAnalyzing(false);
+      if(d.success&&d.needs_confirmation){
+        setPendingExtraction({analysis:d.analysis,drawing_sheets:d.drawing_sheets,drawing_regions:d.drawing_regions,takeoffs:d.takeoffs});
+        notify("AI extraction ready. Confirm key fields to run the BOQ.","success");
+      }
+      else if(d.success){notify("Analysis complete. Cost estimate ready.","success");await load();setActiveStep("review");}
+      else notify(d.message||"Analysis failed.","error");
+    };
+    setTimeout(poll,6000);
   }
 
   async function confirmExtraction(analysisDraft){

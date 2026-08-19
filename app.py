@@ -17,6 +17,49 @@ import mimetypes
 import urllib.error
 import urllib.request
 import urllib.parse
+import threading
+
+# ── Async analysis job store ─────────────────────────────────────────────────
+# Stores running/completed analysis jobs in memory.
+# Key: job_id (str), Value: dict with status/result.
+_analysis_jobs = {}
+_analysis_jobs_lock = threading.Lock()
+
+def _run_analysis_job(job_id, project_row_dict, parcel):
+    """Runs in a background thread. MUST push Flask app context manually."""
+    try:
+        with _analysis_jobs_lock:
+            _analysis_jobs[job_id]["status"] = "running"
+
+        # Background threads have no Flask request context.
+        # analyze_drawing_with_ai only calls project_file_bytes (reads dict/file)
+        # and then the Anthropic API — neither needs get_db() or g.
+        # So we just call it directly without app context.
+        raw_analysis = analyze_drawing_with_ai(project_row_dict)
+
+        if raw_analysis.get("ai_error"):
+            with _analysis_jobs_lock:
+                _analysis_jobs[job_id].update({
+                    "status": "error",
+                    "message": raw_analysis.get("ai_error_message", "AI analysis failed."),
+                    "error_detail": raw_analysis.get("ai_error_detail", ""),
+                })
+            return
+        with _analysis_jobs_lock:
+            _analysis_jobs[job_id].update({
+                "status": "done",
+                "raw_analysis": raw_analysis,
+                "parcel": parcel,
+            })
+    except Exception as exc:
+        import traceback
+        with _analysis_jobs_lock:
+            _analysis_jobs[job_id].update({
+                "status": "error",
+                "message": str(exc),
+                "error_detail": traceback.format_exc()[-500:],
+            })
+
 
 from flask import Flask, request, jsonify, g, Response
 from flask_cors import CORS
@@ -303,7 +346,9 @@ PROPERTY_COST_PROFILES = {
         "finish_multiplier": 1.38,
     },
 }
-ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-5")
+ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5").strip()
+if "opus" in ANTHROPIC_MODEL.lower() and os.environ.get("ALLOW_EXPENSIVE_CLAUDE", "false").lower() not in ("1", "true", "yes"):
+    ANTHROPIC_MODEL = "claude-sonnet-4-5"
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "auto").strip()
 GEMINI_MODEL_PREFERENCE = os.environ.get(
     "GEMINI_MODEL_PREFERENCE",
@@ -311,6 +356,9 @@ GEMINI_MODEL_PREFERENCE = os.environ.get(
 )
 AI_PROVIDER = os.environ.get("AI_PROVIDER", "").strip().lower()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+MAX_AI_SECONDS = int(os.environ.get("MAX_AI_SECONDS", "420"))
+MAX_PDF_PAGES_FOR_AI_RAW = os.environ.get("MAX_PDF_PAGES_FOR_AI", "").strip()
+MAX_PDF_PAGES_FOR_AI = int(MAX_PDF_PAGES_FOR_AI_RAW) if MAX_PDF_PAGES_FOR_AI_RAW.isdigit() else 0
 ALLOWED_UPLOADS = {
     ".pdf": "application/pdf",
     ".png": "image/png",
@@ -319,7 +367,7 @@ ALLOWED_UPLOADS = {
     ".dxf": "application/dxf",
     ".dwg": "application/octet-stream",
 }
-ENABLE_AI_VALIDATION = os.environ.get("ENABLE_AI_VALIDATION", "true").strip().lower() not in ("0", "false", "no")
+ENABLE_AI_VALIDATION = os.environ.get("ENABLE_AI_VALIDATION", "false").strip().lower() not in ("0", "false", "no")
 
 SPEC_FACTORS = {
     "concrete_grade": {"M20": 0.96, "M25": 1.0, "M30": 1.055, "M35": 1.10},
@@ -360,137 +408,23 @@ RATE_LIBRARY = {
 }
 
 NIRMAN_EXTRACTION_PROMPT = """
-You are Nirman.AI, an Indian construction quantity-surveying assistant.
-Read the uploaded architectural drawing/PDF and return ONLY valid JSON.
+You are Nirman.AI, an Indian construction QS assistant. Read the drawing/PDF and return ONLY valid JSON — no markdown, no commentary.
 
-Your job:
-1. Understand the project and extract construction estimate inputs.
-2. Identify drawing sheets and page-level metadata.
-3. Suggest editable visual regions for rooms, cores, facade, openings, walls and slabs.
-4. Estimate takeoff hints conservatively where real dimensions are visible.
-5. Flag missing information clearly.
-
-Return this exact JSON shape:
-{
-  "building_type": "Residential Tower",
-  "project_type": "residential_tower|group_housing|villa|commercial_office|mall_retail|banquet_hall|hotel_hospitality|industrial_warehouse|school_institution|hospital_healthcare",
-  "drawing_discipline": "architectural|hvac|electrical|plumbing|fire|structural|interior",
-  "estimate_scope": "full_project|discipline_only",
-  "scope_reason": "why this should be a full BOQ or a discipline-only estimate",
-  "total_floors": 15,
-  "total_units": 60,
-  "unit_types": [{"type":"2BHK","count":40,"carpet_area_sqft":850}],
-  "total_built_up_area_sqft": 75000,
-  "total_carpet_area_sqft": 58000,
-  "plot_area_sqft": 12000,
-  "structure_type": "RCC Frame",
-  "spec_level": "economy|standard|premium|luxury",
-  "basement_levels": 1,
-  "parking_spaces": 65,
-  "lift_count": 3,
-  "discipline_takeoff": {
-    "equipment": [{"type":"cassette ac","qty":2,"hp":2.0,"tr":1.65,"cfm":466,"notes":"visible tag"}],
-    "total_tr": 3.3,
-    "total_cfm": 932
-  },
-  "hvac_units": [{"type":"cassette ac","qty":2,"hp_rating":2.0,"tr":1.65,"cfm":466,"room":"lounge"}],
-  "floor_wise_areas": {"basement":0,"ground":0,"first":0,"second":0,"terrace":0,"pool_landscape":0},
-  "luxury_amenities": {"swimming_pool":false,"sauna":false,"modular_kitchen":false,"home_automation":false,"pergola":false,"fire_pit":false,"bar":false,"gym":false,"home_theater":false},
-  "detected_features": [
-    {"name":"Indoor gym","category":"amenity","area_sqft":1200,"quantity":1,"unit":"space","confidence":"high","source":"Page 4 label: Indoor Gym","included":true}
-  ],
-  "field_confidence": {
-    "total_built_up_area_sqft": "high|medium|low",
-    "plot_area_sqft": "high|medium|low",
-    "total_floors": "high|medium|low",
-    "floor_wise_areas": "high|medium|low",
-    "detected_features": "high|medium|low",
-    "discipline_takeoff": "high|medium|low"
-  },
-  "field_evidence": {
-    "total_built_up_area_sqft": "Page 2 area schedule says ...",
-    "plot_area_sqft": "Title block/site schedule says ...",
-    "total_floors": "Elevation/floor labels show ...",
-    "floor_wise_areas": "Area schedule/floor labels show ...",
-    "detected_features": "Visible labels include ...",
-    "discipline_takeoff": "Equipment schedule or tags show ..."
-  },
-  "confidence": "high|medium|low",
-  "drawing_review": {
-    "summary": "short review",
-    "risks": [],
-    "missing_information": [],
-    "assumptions": []
-  },
-  "drawing_sheets": [
-    {
-      "page": 1,
-      "sheet_type": "site_plan|floor_plan|elevation|section|schedule|detail",
-      "sheet_title": "Typical Floor Plan",
-      "floor_name": "Typical Floor",
-      "scale": "1:100",
-      "scale_pixels": 0,
-      "scale_real_ft": 0,
-      "floor_height_ft": 10,
-      "floor_height_markers": [{"label":"floor to floor","height_ft":10}],
-      "north_direction": "north up / not detected",
-      "detected_labels": ["rooms","lift","staircase"],
-      "missing_fields": ["scale not visible"],
-      "thumbnail_label": "Plan",
-      "annotations": "short notes",
-      "confidence": "high|medium|low"
-    }
-  ],
-  "drawing_regions": [
-    {
-      "sheet_page": 2,
-      "region_type": "room_zone|wall_zone|slab_zone|facade_zone|opening|core|mep_zone",
-      "label": "Apartment zone",
-      "x": 10,
-      "y": 12,
-      "w": 35,
-      "h": 24,
-      "quantity_sqft": 0,
-      "length_ft": 0,
-      "width_ft": 0,
-      "height_ft": 0,
-      "material": "flooring",
-      "quantity_hint": "visible apartment cluster",
-      "confidence": "high|medium|low"
-    }
-  ],
-  "takeoff_hints": {
-    "flooring_area_sqft": 0,
-    "facade_area_sqft": 0,
-    "window_glazing_area_sqft": 0,
-    "wall_area_sqft": 0,
-    "slab_area_sqft": 0,
-    "plaster_paint_area_sqft": 0
-  },
-  "notes": "short notes"
-}
+JSON schema (fill all fields, use 0/false/[] for unknowns):
+{"building_type":"","project_type":"residential_tower|group_housing|villa|commercial_office|mall_retail|banquet_hall|hotel_hospitality|industrial_warehouse|school_institution|hospital_healthcare","drawing_discipline":"architectural|hvac|electrical|plumbing|fire|structural|interior","estimate_scope":"full_project|discipline_only","scope_reason":"","total_floors":0,"total_units":0,"unit_types":[{"type":"","count":0,"carpet_area_sqft":0}],"total_built_up_area_sqft":0,"total_carpet_area_sqft":0,"plot_area_sqft":0,"structure_type":"RCC Frame","spec_level":"economy|standard|premium|luxury","basement_levels":0,"parking_spaces":0,"lift_count":0,"discipline_takeoff":{"equipment":[],"total_tr":0,"total_cfm":0},"hvac_units":[],"floor_wise_areas":{"basement":0,"ground":0,"first":0,"second":0,"terrace":0,"pool_landscape":0},"luxury_amenities":{"swimming_pool":false,"sauna":false,"modular_kitchen":false,"home_automation":false,"pergola":false,"fire_pit":false,"bar":false,"gym":false,"home_theater":false},"detected_features":[{"name":"","category":"","area_sqft":0,"quantity":0,"unit":"","confidence":"high|medium|low","source":"","included":true}],"field_confidence":{"total_built_up_area_sqft":"","plot_area_sqft":"","total_floors":"","floor_wise_areas":"","detected_features":"","discipline_takeoff":""},"field_evidence":{"total_built_up_area_sqft":"","plot_area_sqft":"","total_floors":"","floor_wise_areas":"","detected_features":"","discipline_takeoff":""},"confidence":"high|medium|low","drawing_review":{"summary":"","risks":[],"missing_information":[],"assumptions":[]},"drawing_sheets":[{"page":1,"sheet_type":"","sheet_title":"","floor_name":"","scale":"","floor_height_ft":10,"detected_labels":[],"missing_fields":[],"thumbnail_label":"","confidence":""}],"drawing_regions":[{"sheet_page":1,"region_type":"","label":"","x":0,"y":0,"w":0,"h":0,"quantity_sqft":0,"length_ft":0,"width_ft":0,"height_ft":0,"material":"","confidence":""}],"takeoff_hints":{"flooring_area_sqft":0,"facade_area_sqft":0,"window_glazing_area_sqft":0,"wall_area_sqft":0,"slab_area_sqft":0,"plaster_paint_area_sqft":0},"notes":""}
 
 Rules:
-- Use Indian market terminology: RCC, TMT, DSR, CPWD, RERA, khasra/plot, FAR/FSI.
-- Use numbers without commas or units.
-- Prefer visible drawing text, title blocks, schedules, room labels and dimension notes over generic assumptions.
-- If a value is visible, prefill it directly. If a value is not visible, infer conservatively and list it under assumptions.
-- Read every page, including site plan, floor plans, roof/terrace plans, sections, elevations, schedules and MEP sheets.
-- Detect plot/site area from labels such as plot area, site area, land area, khasra area, property area, sq m, sqm, sq.ft, acres or hectares.
-- Detect floor count from labels such as basement, lower ground, ground floor, first floor, second floor, terrace, roof, section markers and elevation floor-height markers.
-- Detect floor-wise areas from area schedules, title blocks, room schedules and plan labels. For villas, fill basement, ground, first, second, terrace and pool_landscape where visible.
-- Detect specification level from drawing notes, title blocks, brand notes and visible labels. Use luxury only for high-end villas/hotels/premium projects with evidence; otherwise use standard.
-- Detect ALL labelled project spaces, amenities and functional rooms from explicit drawing labels. Do not limit detection to villas.
-- Examples: clubhouse, indoor gym, outdoor gym, indoor games, kids play area, creche, party hall, banquet hall, multipurpose hall, society office, guard room, STP, pump room, classrooms, labs, library, auditorium, cafeteria, infirmary, pantry, restaurant, commercial kitchen, laundry, spa, lobby, BOH, anchor store, food court, escalator, atrium, ICU, OT, wards, pharmacy, diagnostic lab, medical gas room, dock bays, PEB shed, VDF flooring and loading area.
-- For every detected feature, add an object to detected_features with a concrete source/evidence string such as page number, visible label, schedule row or title-block note.
-- For every key numeric field, return field_confidence and field_evidence. Use high only when the drawing visibly states it, medium when inferred from visible labels/dimensions, and low when guessed.
-- Set luxury_amenities booleans for backward compatibility only when those exact amenities are visible. The broader detected_features array is the primary source for project-specific estimate additions.
-- If the sheet is HVAC, electrical, plumbing, fire, structural, or interior-only, set estimate_scope to "discipline_only" and do not generate full-project assumptions.
-- If the selected/building type is villa or independent house, do not assume tower-style lifts, basements or apartment unit mixes.
-- If the project is a standalone villa/bungalow, set total_units = 1, building_type = "Villa", estimate floor_wise_areas, auto-select visible amenities such as pool/sauna/bar/gym/home theater/pergola/fire pit, and list HVAC units with hp_rating when visible.
-- In drawing_review.assumptions, include short evidence notes for each auto-selected amenity and each inferred area/floor value.
-- Use school_institution for schools, colleges and educational campuses. Use hospital_healthcare for hospitals, clinics and healthcare buildings.
-- Never include markdown, commentary or code fences.
+- Indian terms: RCC, TMT, DSR, CPWD, RERA, khasra, FAR/FSI. Numbers without commas or units.
+- Prefer visible text (title blocks, schedules, room labels, dimension notes). Infer conservatively; list inferences in assumptions.
+- Read ALL pages: site plan, floor plans, sections, elevations, schedules, MEP sheets.
+- Detect plot area from: plot area, site area, khasra area, sq m, sqm, sq.ft, acres, hectares.
+- Detect floor count from: basement, LGF, GF, first, second, terrace, roof, section/elevation markers.
+- Detect spec level from drawing notes/brands. Use luxury only with clear evidence; default standard.
+- Detect ALL labelled spaces in detected_features (clubhouse, gym, pool, STP, kitchen, labs, ICU, dock bays, etc.) with page evidence.
+- Villa: total_units=1, floor_wise_areas per floor, auto-detect pool/sauna/bar/gym/home theater.
+- HVAC/MEP/structural-only sheet: estimate_scope=discipline_only.
+- field_confidence: high=directly stated, medium=inferred from labels, low=guessed.
+- GROUP HOUSING SPECIFIC: Extract total_units as sum of ALL unit types across ALL towers. Read the area statement/schedule page for BUA table — this is the most accurate source. Detect each tower separately in detected_features (e.g. Tower A: 60 units, Tower B: 80 units). Detect clubhouse, amphitheatre, kids play, senior citizen area, jogging track, swimming pool, STP, pump room, DG room, security cabin separately in detected_features with area. Detect unit_types array with each BHK type, count and carpet area. total_built_up_area_sqft = sum of all towers + podium + clubhouse + basement. Do NOT use default_bua for group housing — always read from area schedule.
 """
 
 NIRMAN_VALIDATION_PROMPT = """
@@ -622,6 +556,7 @@ def init_db():
                     file_name TEXT,
                     file_mime TEXT,
                     file_size INTEGER,
+                    file_hash TEXT,
                     file_data BYTEA,
                     file_path TEXT,
                     page_manifest TEXT,
@@ -720,6 +655,7 @@ def init_db():
                     file_path TEXT,
                     file_kind TEXT DEFAULT 'drawing',
                     parsed_text TEXT,
+                    file_hash TEXT,
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS estimate_feedback (
@@ -794,6 +730,7 @@ def init_db():
                 file_name TEXT,
                 file_mime TEXT,
                 file_size INTEGER,
+                file_hash TEXT,
                 file_data BLOB,
                 file_path TEXT,
                 page_manifest TEXT,
@@ -856,6 +793,7 @@ def init_db():
                 file_name TEXT,
                 file_mime TEXT,
                 file_size INTEGER,
+                file_hash TEXT,
                 file_data BLOB,
                 parsed_data TEXT,
                 created_at TEXT NOT NULL
@@ -942,6 +880,7 @@ def init_db():
         migrations = {
             "file_mime": "ALTER TABLE projects ADD COLUMN file_mime TEXT",
             "file_size": "ALTER TABLE projects ADD COLUMN file_size INTEGER",
+            "file_hash": "ALTER TABLE projects ADD COLUMN file_hash TEXT",
             "file_data": "ALTER TABLE projects ADD COLUMN file_data BLOB",
             "file_path": "ALTER TABLE projects ADD COLUMN file_path TEXT",
             "page_manifest": "ALTER TABLE projects ADD COLUMN page_manifest TEXT",
@@ -963,6 +902,13 @@ def init_db():
         for col, sql in user_migrations.items():
             if col not in existing_users:
                 db.execute(sql)
+        existing_drawing_files = {row["name"] for row in db.execute("PRAGMA table_info(drawing_files)").fetchall()}
+        drawing_file_migrations = {
+            "file_hash": "ALTER TABLE drawing_files ADD COLUMN file_hash TEXT",
+        }
+        for col, sql in drawing_file_migrations.items():
+            if col not in existing_drawing_files:
+                db.execute(sql)
         ensure_schema(db)
         seed_rate_items(db)
         db.commit()
@@ -975,6 +921,8 @@ def ensure_schema(db):
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS usage_month TEXT",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS usage_count INTEGER DEFAULT 0",
         "ALTER TABLE projects ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE",
+        "ALTER TABLE projects ADD COLUMN IF NOT EXISTS file_hash TEXT",
+        "ALTER TABLE drawing_files ADD COLUMN IF NOT EXISTS file_hash TEXT",
     ]
     for sql in migrations:
         db.execute(sql)
@@ -1178,6 +1126,9 @@ def extract_file_text(file_path, file_mime):
     if file_path.lower().endswith(".dwg"):
         return "DWG uploaded. Convert to DXF for exact CAD geometry extraction; Claude will still inspect exported PDF/image drawings."
     return ""
+
+def file_sha256(data):
+    return hashlib.sha256(data or b"").hexdigest()
 
 def classify_drawing_scope(file_name="", text="", analysis=None):
     haystack = f"{file_name or ''}\n{text or ''}\n{json.dumps(analysis or {}, default=str)}".lower()
@@ -1484,6 +1435,12 @@ def project_file_bytes(row):
         with open(path, "rb") as f:
             return f.read()
     return row["file_data"]
+
+def clone_json(value, default):
+    try:
+        return json.loads(value) if value else default
+    except Exception:
+        return default
 
 def project_page_dir(project_id):
     path = os.path.join(PAGE_RENDER_DIR, project_id)
@@ -2048,26 +2005,28 @@ def upload_project_drawing(project_id):
     if error:
         return jsonify({"success": False, "message": error}), 400
 
+    uploaded_hash = file_sha256(data)
     file_path = write_project_file(project_id, file.filename, data)
     manifest = render_project_pages(project_id, file_path, mime, file.filename, len(data))
+    parsed_text = extract_file_text(file_path, mime)
 
     db.execute(
         """
         UPDATE projects
-        SET file_name = ?, file_mime = ?, file_size = ?, file_data = ?, file_path = ?, page_manifest = ?,
+        SET file_name = ?, file_mime = ?, file_size = ?, file_hash = ?, file_data = ?, file_path = ?, page_manifest = ?,
             drawing_sheets = NULL, drawing_regions = NULL, takeoffs = NULL,
             analysis = NULL, estimate = NULL, status = 'uploaded', updated_at = ?
         WHERE id = ?
         """,
-        (file.filename, mime, len(data), db_blob(data), file_path, json.dumps(manifest), now(), project_id)
+        (file.filename, mime, len(data), uploaded_hash, db_blob(data), file_path, json.dumps(manifest), now(), project_id)
     )
     db.execute(
         """
         INSERT INTO drawing_files
-        (id, project_id, user_id, file_name, file_mime, file_size, file_data, file_path, file_kind, parsed_text, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, project_id, user_id, file_name, file_mime, file_size, file_hash, file_data, file_path, file_kind, parsed_text, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (uid(), project_id, g.current_user["id"], file.filename, mime, len(data), db_blob(data), file_path, "drawing", extract_file_text(file_path, mime), now())
+        (uid(), project_id, g.current_user["id"], file.filename, mime, len(data), uploaded_hash, db_blob(data), file_path, "drawing", parsed_text, now())
     )
     db.commit()
 
@@ -2178,12 +2137,87 @@ def analyze_project(project_id):
     body = request.get_json(silent=True) or {}
     draft_mode = bool(body.get("draft"))
     parcel = parse_json_field(row, "parcel_data", {})
-    raw_analysis = analyze_drawing_with_ai(row)
-    if raw_analysis.get("ai_error"):
+
+    with _analysis_jobs_lock:
+        cutoff = time.time() - MAX_AI_SECONDS
+        for stale_id, stale_job in list(_analysis_jobs.items()):
+            if float(stale_job.get("created_at") or 0) < cutoff:
+                _analysis_jobs.pop(stale_id, None)
+        for existing_id, existing_job in _analysis_jobs.items():
+            if (
+                existing_job.get("project_id") == project_id
+                and existing_job.get("user_id") == g.current_user["id"]
+                and existing_job.get("status") in ("queued", "running")
+            ):
+                return jsonify({"success": True, "job_id": existing_id, "status": existing_job.get("status"), "reused": True})
+
+    # ── Async: start background job and return job_id immediately ──
+    # This avoids Render's ~30s proxy timeout on long Claude API calls.
+    job_id = str(uuid.uuid4())
+    project_dict = dict(row)
+    with _analysis_jobs_lock:
+        _analysis_jobs[job_id] = {
+            "status": "queued",
+            "draft_mode": draft_mode,
+            "created_at": time.time(),
+            "project_id": project_id,
+            "user_id": g.current_user["id"],
+        }
+    t = threading.Thread(target=_run_analysis_job, args=(job_id, project_dict, parcel), daemon=True)
+    t.start()
+    return jsonify({"success": True, "job_id": job_id, "status": "queued"})
+
+@app.route("/api/projects/<project_id>/analyze/status/<job_id>", methods=["GET"])
+@require_auth
+def analyze_project_status(project_id, job_id):
+    """Poll this endpoint to get analysis result. Returns status: queued|running|done|error."""
+    with _analysis_jobs_lock:
+        job = _analysis_jobs.get(job_id)
+    if not job:
+        return jsonify({"success": False, "message": "Job not found."}), 404
+
+    status = job.get("status")
+    elapsed = time.time() - float(job.get("created_at") or time.time())
+    if status in ("queued", "running") and elapsed > MAX_AI_SECONDS:
+        with _analysis_jobs_lock:
+            _analysis_jobs.pop(job_id, None)
         return jsonify({
             "success": False,
-            "message": raw_analysis.get("ai_error_message") or "AI analysis failed. Please try again.",
-            "error_detail": raw_analysis.get("ai_error_detail", ""),
+            "status": "error",
+            "message": "AI analysis timed out. Please try a smaller PDF or reduce the drawing set.",
+            "retryable": True,
+        }), 504
+    if status in ("queued", "running"):
+        return jsonify({"success": True, "status": status, "elapsed_seconds": int(elapsed)})
+    if status == "error":
+        return jsonify({"success": False, "status": "error",
+                        "message": job.get("message", "AI analysis failed."),
+                        "error_detail": job.get("error_detail", ""),
+                        "retryable": True}), 502
+
+    # status == "done" — finish DB writes and return full result
+    raw_analysis = job["raw_analysis"]
+    parcel = job["parcel"]
+    draft_mode = job.get("draft_mode", False)
+
+    # Clean up job from memory
+    with _analysis_jobs_lock:
+        _analysis_jobs.pop(job_id, None)
+
+    db = get_db()
+    row = db.execute(
+        "SELECT * FROM projects WHERE id = ? AND user_id = ?",
+        (project_id, g.current_user["id"])
+    ).fetchone()
+    if not row:
+        return jsonify({"success": False, "message": "Project not found."}), 404
+
+    # ── rest of original analyze_project logic continues below ──
+    raw_analysis_placeholder = raw_analysis
+    if raw_analysis_placeholder.get("ai_error"):
+        return jsonify({
+            "success": False,
+            "message": raw_analysis_placeholder.get("ai_error_message") or "AI analysis failed. Please try again.",
             "retryable": True,
         }), 502
     analysis = enrich_analysis_scope(raw_analysis, row)
@@ -2917,6 +2951,7 @@ def normalize_analysis(data, project_name):
         "confidence": str(data.get("confidence") or "medium").lower(),
         "ai_source": data.get("ai_source") or "claude",
         "ai_model": data.get("ai_model") or "",
+        "ai_usage": data.get("ai_usage") if isinstance(data.get("ai_usage"), dict) else {},
         "drawing_review": {
             "summary": str(review.get("summary") or data.get("notes") or f"AI extraction generated for {project_name}."),
             "risks": review.get("risks") if isinstance(review.get("risks"), list) else [],
@@ -2933,6 +2968,139 @@ def normalize_analysis(data, project_name):
         result["takeoff_hints"] = data["takeoff_hints"]
     return result
 
+# Per-project-type page limits: complex projects need more pages for accuracy
+_PROJECT_PAGE_LIMITS = {
+    "villa":                  10,  # site+GF+floors+elevation+section
+    "residential_tower":      12,  # site+basement+GF+typical+terrace+elevation+section+schedule
+    "group_housing":          16,  # site+basement+GF+typical+terrace+clubhouse+unit plans+schedule
+    "commercial_office":      12,
+    "mall_retail":            14,
+    "banquet_hall":           8,
+    "hotel_hospitality":      14,
+    "industrial_warehouse":   8,
+    "school_institution":     12,
+    "hospital_healthcare":    14,
+}
+
+def get_page_limit_for_project(project_type):
+    """Return page limit for this project type.
+
+    MAX_PDF_PAGES_FOR_AI is optional. Leave it unset for the project-type
+    defaults below; set it only when you deliberately want a hard cost cap.
+    """
+    type_limit = _PROJECT_PAGE_LIMITS.get(project_type, 12)
+    if MAX_PDF_PAGES_FOR_AI > 0:
+        return min(type_limit, MAX_PDF_PAGES_FOR_AI)
+    return type_limit
+
+_IMPORTANT_PAGE_KEYWORDS = [
+    ("area statement", 120),
+    ("area schedule", 120),
+    ("built up area", 110),
+    ("built-up area", 110),
+    ("bua", 90),
+    ("far", 80),
+    ("fsi", 80),
+    ("unit mix", 95),
+    ("unit type", 90),
+    ("carpet area", 90),
+    ("saleable area", 85),
+    ("plot area", 95),
+    ("site area", 90),
+    ("khasra", 80),
+    ("rera", 70),
+    ("tower", 75),
+    ("typical floor", 70),
+    ("ground floor", 65),
+    ("basement", 65),
+    ("section", 75),
+    ("elevation", 75),
+    ("schedule", 65),
+    ("door window", 55),
+    ("finish", 50),
+    ("clubhouse", 70),
+    ("amenity", 65),
+    ("stp", 55),
+    ("pump room", 55),
+    ("dg", 45),
+    ("hvac", 70),
+    ("electrical", 65),
+    ("plumbing", 65),
+    ("fire", 55),
+]
+
+def select_relevant_pdf_pages(pdf_bytes, max_pages, project_type="residential_tower"):
+    """Return a compact PDF containing high-signal pages while preserving original order."""
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        total_pages = len(doc)
+        if total_pages <= max_pages:
+            doc.close()
+            return pdf_bytes, list(range(1, total_pages + 1)), "all_pages"
+
+        scored = []
+        for index, page in enumerate(doc):
+            text = (page.get_text() or "").lower()
+            if not text.strip():
+                scored.append((index, 0))
+                continue
+            score = 0
+            for keyword, weight in _IMPORTANT_PAGE_KEYWORDS:
+                if keyword in text:
+                    score += weight
+            title_bonus_terms = ["drawing index", "general notes", "summary", "schedule", "statement"]
+            if any(term in text[:2500] for term in title_bonus_terms):
+                score += 35
+            scored.append((index, score))
+
+        if not any(score for _, score in scored):
+            selected = list(range(min(max_pages, total_pages)))
+            mode = "first_pages_no_text"
+        else:
+            required = {0}
+            if project_type in ("group_housing", "residential_tower"):
+                required.update(range(min(4, total_pages)))
+            elif project_type == "villa":
+                required.update(range(min(3, total_pages)))
+            ranked = [idx for idx, _ in sorted(scored, key=lambda pair: pair[1], reverse=True)]
+            selected_set = set(required)
+            for idx in ranked:
+                selected_set.add(idx)
+                if len(selected_set) >= max_pages:
+                    break
+            selected = sorted(selected_set)[:max_pages]
+            mode = "keyword_selected"
+
+        new_doc = fitz.open()
+        for idx in selected:
+            new_doc.insert_pdf(doc, from_page=idx, to_page=idx)
+        out = new_doc.write()
+        selected_pages = [idx + 1 for idx in selected]
+        new_doc.close()
+        doc.close()
+        return out, selected_pages, mode
+    except Exception:
+        return limit_pdf_pages(pdf_bytes, max_pages=max_pages), [], "fallback_first_pages"
+
+def limit_pdf_pages(pdf_bytes, max_pages=10):
+    """Return pdf_bytes with at most max_pages pages. Requires PyMuPDF."""
+    try:
+        import fitz
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+        if len(doc) <= max_pages:
+            doc.close()
+            return pdf_bytes
+        # Keep first max_pages pages only
+        new_doc = fitz.open()
+        new_doc.insert_pdf(doc, from_page=0, to_page=max_pages - 1)
+        out = new_doc.write()
+        new_doc.close()
+        doc.close()
+        return out
+    except Exception:
+        return pdf_bytes  # fallback: send original if fitz unavailable
+
 def analyze_drawing_with_ai(project):
     file_data = project_file_bytes(project)
     if not file_data:
@@ -2942,6 +3110,13 @@ def analyze_drawing_with_ai(project):
         return analysis
 
     mime = project["file_mime"] or "application/pdf"
+    # Limit PDF pages based on project type — complex projects need more pages
+    if mime == "application/pdf":
+        project_type = project.get("project_type") or "residential_tower"
+        page_limit = get_page_limit_for_project(project_type)
+        file_data, selected_pages, selection_mode = select_relevant_pdf_pages(file_data, max_pages=page_limit, project_type=project_type)
+        project["_selected_pdf_pages"] = selected_pages
+        project["_pdf_selection_mode"] = selection_mode
     b64 = base64.b64encode(file_data).decode("utf-8")
     provider = AI_PROVIDER or "anthropic"
     if provider == "anthropic":
@@ -3028,20 +3203,29 @@ def analyze_with_anthropic(project, mime, b64):
     else:
         drawing_block = {"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}}
 
+    # Move the static prompt to system with cache_control so Anthropic
+    # caches it across retries — saves ~80 % of input-token cost on retries.
     payload = {
         "model": ANTHROPIC_MODEL,
-        "max_tokens": 5000,
+        "max_tokens": int(os.environ.get("ANTHROPIC_MAX_TOKENS", "2500")),
         "temperature": 0,
+        "system": [
+            {
+                "type": "text",
+                "text": NIRMAN_EXTRACTION_PROMPT,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ],
         "messages": [{
             "role": "user",
             "content": [
                 drawing_block,
-                {"type": "text", "text": f"Selected property type from user: {project['project_type'] if 'project_type' in project.keys() else 'residential_tower'}.\n\n{NIRMAN_EXTRACTION_PROMPT}"},
+                {"type": "text", "text": f"Property type: {project['project_type'] if 'project_type' in project.keys() else 'residential_tower'}. Return JSON only."},
             ],
         }],
     }
     errors = []
-    for attempt in range(3):
+    for attempt in range(2):
         req = urllib.request.Request(
             "https://api.anthropic.com/v1/messages",
             data=json.dumps(payload).encode("utf-8"),
@@ -3049,34 +3233,28 @@ def analyze_with_anthropic(project, mime, b64):
                 "content-type": "application/json",
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
+                "anthropic-beta": "prompt-caching-2024-07-31",
             },
             method="POST",
         )
         try:
-            with urllib.request.urlopen(req, timeout=90) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
             text = "".join(block.get("text", "") for block in raw.get("content", []) if block.get("type") == "text")
             data = parse_ai_json(text)
             data["ai_source"] = "claude"
             data["ai_model"] = ANTHROPIC_MODEL
+            data["ai_usage"] = raw.get("usage") or {}
             data["project_type"] = data.get("project_type") or (project["project_type"] if "project_type" in project.keys() else "residential_tower")
             return normalize_analysis(data, project["name"])
-        except urllib.error.HTTPError as exc:
-            try:
-                body = exc.read().decode("utf-8", errors="replace")
-            except Exception:
-                body = ""
-            errors.append(f"HTTP {exc.code}: {body[:300]}")
-            if attempt < 2:
-                time.sleep(2)
-        except (urllib.error.URLError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
+        except (urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError, KeyError, TimeoutError) as exc:
             errors.append(str(exc))
-            if attempt < 2:
+            if attempt < 1:
                 time.sleep(2)
-    analysis = fallback_analysis(project["name"], f"Claude analysis failed after 3 attempts: {'; '.join(errors[-2:])}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
+    analysis = fallback_analysis(project["name"], f"Claude analysis failed after 2 attempts: {'; '.join(errors[-2:])}", project["project_type"] if "project_type" in project.keys() else "residential_tower")
     analysis["ai_error"] = True
-    analysis["ai_error_message"] = "Claude analysis failed after 3 attempts. Please try again."
-    analysis["ai_error_detail"] = "; ".join(errors[-3:])
+    analysis["ai_error_message"] = "Claude analysis failed after 2 attempts. Please try again."
+    analysis["ai_error_detail"] = "; ".join(errors[-2:])
     return analysis
 
 def validate_with_anthropic(analysis, estimate):
@@ -3102,13 +3280,14 @@ def validate_with_anthropic(analysis, estimate):
     }
     payload = {
         "model": ANTHROPIC_MODEL,
-        "max_tokens": 1600,
+        "max_tokens": 800,
         "temperature": 0,
+        "system": [{"type": "text", "text": NIRMAN_VALIDATION_PROMPT, "cache_control": {"type": "ephemeral"}}],
         "messages": [{
             "role": "user",
             "content": [{
                 "type": "text",
-                "text": NIRMAN_VALIDATION_PROMPT + "\n\nEXTRACTION JSON:\n" + json.dumps(analysis, default=str)[:18000] + "\n\nENGINE ESTIMATE JSON:\n" + json.dumps(slim_estimate, default=str)[:18000],
+                "text": "EXTRACTION JSON:\n" + json.dumps(analysis, default=str)[:10000] + "\n\nESTIMATE JSON:\n" + json.dumps(slim_estimate, default=str)[:6000],
             }],
         }],
     }
@@ -3121,6 +3300,7 @@ def validate_with_anthropic(analysis, estimate):
                 "content-type": "application/json",
                 "x-api-key": api_key,
                 "anthropic-version": "2023-06-01",
+                "anthropic-beta": "prompt-caching-2024-07-31",
             },
             method="POST",
         )
